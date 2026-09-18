@@ -94,7 +94,9 @@ if ($LASTEXITCODE -ne 0) {
 # ---------------------------------------------------------------- 3) 编译
 Write-Host "==> [3/4] candle 编译 ..." -ForegroundColor Cyan
 $product = Join-Path $PSScriptRoot "msi\Product.wxs"
+# -ext 必须同时传给 candle：WixUIExtension(WixUI_InstallDir) + WixUtilExtension(util:PermissionEx)
 & $candle -nologo "-dVersion=$Version" "-dSourceDir=$srcDir" `
+    -ext WixUIExtension -ext WixUtilExtension `
     -out "$msiDir\" $product $appFiles
 if ($LASTEXITCODE -ne 0) {
     Write-Host "==> candle 失败（退出码 $LASTEXITCODE）" -ForegroundColor Red
