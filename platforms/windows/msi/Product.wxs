@@ -27,12 +27,13 @@
              InstallScope="perMachine"
              Compressed="yes"
              Manufacturer="GestionFacturas"
-             Description="西班牙语单据财务管理系统（Windows）"
-             Comments="扫描导入西语进货/出货单据，自动生成资产负债表与利润表" />
+             Description="Invoice and accounting manager for Spanish documents (Windows)"
+             Comments="Import Spanish purchase/sales invoices, auto-generate balance sheet and profit and loss" />
 
     <!-- 覆盖安装：同版本也允许升级 -->
+    <!-- 说明：MSI 数据库代码页为 1252，这里只能用 ASCII，中文会出现 LGHT0311 -->
     <MajorUpgrade AllowSameVersionUpgrades="yes"
-                  DowngradeErrorMessage="已安装了较新的版本，安装将终止。" />
+                  DowngradeErrorMessage="A newer version is already installed. Setup will now exit." />
 
     <Media Id="1" Cabinet="app.cab" EmbedCab="yes" CompressionLevel="high" />
 
