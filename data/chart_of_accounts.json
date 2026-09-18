@@ -1,0 +1,1024 @@
+{
+  "meta": {
+    "sheet": "财务初始余额模板_RMB",
+    "source": "财务初始余额.xlsx",
+    "header": [
+      "*科目编码",
+      "*科目名称",
+      "明细科目(是/否)",
+      "借贷",
+      "年初余额",
+      "本年累计借方发生额",
+      "本年累计贷方发生额",
+      "期初余额",
+      "本年累计损益发生额",
+      "",
+      ""
+    ],
+    "note": "is_leaf=1 明细科目（可直接录期初），0 汇总科目"
+  },
+  "accounts": [
+    {
+      "code": "1001",
+      "name": "库存现金",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1002",
+      "name": "银行存款",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "100201",
+      "name": "基本户",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1012",
+      "name": "其他货币资金",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1101",
+      "name": "短期投资",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "110101",
+      "name": "股票",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "110102",
+      "name": "债券",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "110103",
+      "name": "基金",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "110110",
+      "name": "其他",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1121",
+      "name": "应收票据",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1122",
+      "name": "应收账款",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1123",
+      "name": "预付账款",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1131",
+      "name": "应收股利",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1132",
+      "name": "应收利息",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1221",
+      "name": "其他应收款",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1401",
+      "name": "材料采购",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1402",
+      "name": "在途物资",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1403",
+      "name": "原材料",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1404",
+      "name": "材料成本差异",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1405",
+      "name": "库存商品",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1407",
+      "name": "商品进销差价",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1408",
+      "name": "委托加工物资",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1411",
+      "name": "周转材料",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1421",
+      "name": "消耗性生物资产",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1501",
+      "name": "长期债券投资",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "150101",
+      "name": "债券投资",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "150102",
+      "name": "其他债权投资",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1511",
+      "name": "长期股权投资",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "151101",
+      "name": "股票投资",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "151102",
+      "name": "其他股权投资",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1601",
+      "name": "固定资产",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1602",
+      "name": "累计折旧",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "1604",
+      "name": "在建工程",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "160401",
+      "name": "建筑工程",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "160402",
+      "name": "安装工程",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "160403",
+      "name": "技术改造工程",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "160404",
+      "name": "其他支出",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1605",
+      "name": "工程物资",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1606",
+      "name": "固定资产清理",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1621",
+      "name": "生产性生物资产",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1622",
+      "name": "生产性生物资产累计折旧",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "1701",
+      "name": "无形资产",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1702",
+      "name": "累计摊销",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "1801",
+      "name": "长期待摊费用",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "1901",
+      "name": "待处理财产损溢",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "2001",
+      "name": "短期借款",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2201",
+      "name": "应付票据",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2202",
+      "name": "应付账款",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2203",
+      "name": "预收账款",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2211",
+      "name": "应付职工薪酬",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2221",
+      "name": "应交税费",
+      "direction": "贷",
+      "is_leaf": 0
+    },
+    {
+      "code": "222101",
+      "name": "应交增值税",
+      "direction": "贷",
+      "is_leaf": 0
+    },
+    {
+      "code": "22210101",
+      "name": "进项税额",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "22210102",
+      "name": "已交税金",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "22210103",
+      "name": "减免税款",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "22210104",
+      "name": "出口抵减内销产品应纳税额",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "22210105",
+      "name": "转出未交增值税",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "22210106",
+      "name": "销项税额",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "22210107",
+      "name": "出口退税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "22210108",
+      "name": "进项税额转出",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "22210109",
+      "name": "转出多交增值税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222102",
+      "name": "未交增值税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222103",
+      "name": "应交营业税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222104",
+      "name": "应交消费税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222105",
+      "name": "应交资源税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222106",
+      "name": "应交所得税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222107",
+      "name": "应交土地增值税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222108",
+      "name": "应交城市维护建设税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222109",
+      "name": "应交房产税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222110",
+      "name": "应交土地使用税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222111",
+      "name": "应交车船使用税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222112",
+      "name": "应交个人所得税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222113",
+      "name": "教育费附加",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222114",
+      "name": "地方教育费附加",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222115",
+      "name": "印花税",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "222116",
+      "name": "待抵扣进项税额",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "2231",
+      "name": "应付利息",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2232",
+      "name": "应付利润",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2241",
+      "name": "其他应付款",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2401",
+      "name": "递延收益",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2501",
+      "name": "长期借款",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "2701",
+      "name": "长期应付款",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "3001",
+      "name": "实收资本",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "3002",
+      "name": "资本公积",
+      "direction": "贷",
+      "is_leaf": 0
+    },
+    {
+      "code": "300201",
+      "name": "资本溢价",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "300202",
+      "name": "接受捐赠非现金资产准备",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "300206",
+      "name": "外币资本折算差额",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "300207",
+      "name": "其他资本公积",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "3101",
+      "name": "盈余公积",
+      "direction": "贷",
+      "is_leaf": 0
+    },
+    {
+      "code": "310101",
+      "name": "法定盈余公积",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "310102",
+      "name": "任意盈余公积",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "310103",
+      "name": "法定公益金",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "3103",
+      "name": "本年利润",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "3104",
+      "name": "利润分配",
+      "direction": "贷",
+      "is_leaf": 0
+    },
+    {
+      "code": "310401",
+      "name": "其他转入",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "310402",
+      "name": "提取法定盈余公积",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "310403",
+      "name": "提取法定公益金",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "310409",
+      "name": "提取任意盈余公积",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "310410",
+      "name": "应付利润",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "310411",
+      "name": "转作资本的利润",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "310415",
+      "name": "未分配利润",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "4001",
+      "name": "生产成本",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "400101",
+      "name": "基本生产成本",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "400102",
+      "name": "辅助生产成本",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "4101",
+      "name": "制造费用",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "4301",
+      "name": "研发支出",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "4401",
+      "name": "工程施工",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "4403",
+      "name": "机械作业",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "5001",
+      "name": "主营业务收入",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "5051",
+      "name": "其他业务收入",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "5111",
+      "name": "投资收益",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "5301",
+      "name": "营业外收入",
+      "direction": "贷",
+      "is_leaf": 0
+    },
+    {
+      "code": "530101",
+      "name": "非流动资产处置净收益",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "530102",
+      "name": "政府补助",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "530103",
+      "name": "捐赠收益",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "530104",
+      "name": "盘盈收益",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "530105",
+      "name": "其他",
+      "direction": "贷",
+      "is_leaf": 1
+    },
+    {
+      "code": "5401",
+      "name": "主营业务成本",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "5402",
+      "name": "其他业务成本",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "5403",
+      "name": "税金及附加",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "5601",
+      "name": "销售费用",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "560101",
+      "name": "工资",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560102",
+      "name": "福利费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560103",
+      "name": "办公用品费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560104",
+      "name": "业务招待费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560105",
+      "name": "广告和业务宣传费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560106",
+      "name": "差旅费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560199",
+      "name": "其他",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "5602",
+      "name": "管理费用",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "560201",
+      "name": "工资",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560202",
+      "name": "福利费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560203",
+      "name": "办公用品费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560204",
+      "name": "业务招待费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560205",
+      "name": "交通费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560206",
+      "name": "运杂费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560207",
+      "name": "差旅费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560208",
+      "name": "通讯费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560209",
+      "name": "修理费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560210",
+      "name": "租赁费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560211",
+      "name": "水电管理费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560212",
+      "name": "折旧费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560213",
+      "name": "保险费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560214",
+      "name": "公积金",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560215",
+      "name": "社保",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560216",
+      "name": "汽车费用",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560217",
+      "name": "服务费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560218",
+      "name": "无形资产摊销",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560299",
+      "name": "其他",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "5603",
+      "name": "财务费用",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "560301",
+      "name": "汇兑损益",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560302",
+      "name": "利息",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560303",
+      "name": "手续费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560304",
+      "name": "账户管理费",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "560399",
+      "name": "其他",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "5711",
+      "name": "营业外支出",
+      "direction": "借",
+      "is_leaf": 0
+    },
+    {
+      "code": "571101",
+      "name": "存货盘亏毁损",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "571102",
+      "name": "非流动资产处置净损失",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "571103",
+      "name": "坏账损失",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "571104",
+      "name": "无法收回的长期债券投资损失",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "571105",
+      "name": "无法收回的长期股权投资损失",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "571106",
+      "name": "自然灾害等不可抗力造成的损失",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "571107",
+      "name": "税收滞纳金",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "571108",
+      "name": "罚金、罚款",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "571109",
+      "name": "捐赠支出",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "571110",
+      "name": "其他",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "5801",
+      "name": "所得税费用",
+      "direction": "借",
+      "is_leaf": 1
+    },
+    {
+      "code": "6000",
+      "name": "以前年度损益调整",
+      "direction": "借",
+      "is_leaf": 1
+    }
+  ]
+}

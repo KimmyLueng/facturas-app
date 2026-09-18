@@ -12,12 +12,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
+      # Chaquopy 要求构建机 Python 版本与 app/build.gradle 的 version 一致（3.12）
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: 规范脚本换行符（CRLF 会让 bash 报 bad interpreter）
         run: find . -name '*.sh' -print0 | xargs -0 perl -pi -e 's/\r\n?/\n/g'
@@ -42,7 +47,7 @@ jobs:
         # 注：Chaquopy 自 12.0.1 起免费开源，无需 license key
 
       - name: 上传 APK（构件）
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: GestionFacturas-debug-apk
           path: platforms/android/app/build/outputs/apk/debug/app-debug.apk

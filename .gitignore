@@ -15,7 +15,9 @@ __pycache__/
 *.sqlite
 *.sqlite3
 facturas.db*
-data/
+# data/ 下只保留科目表模板（打包必需），其余运行时文件不入库
+data/**
+!data/chart_of_accounts.json
 backups/
 logs/
 *.log

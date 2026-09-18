@@ -18,7 +18,7 @@ jobs:
     # macos-latest = Apple Silicon(arm64)；需要 Intel(x86_64) 版请把这里改成 macos-13
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v5
         with:
@@ -46,13 +46,13 @@ jobs:
           fi
 
       - name: 上传 dmg
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: GestionFacturas-macos-dmg
           path: dist/GestionFacturas.dmg
 
       - name: 上传 .app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: GestionFacturas-macos-app
           path: dist/GestionFacturas.app
