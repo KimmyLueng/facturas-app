@@ -10,6 +10,11 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
      xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
 
+  <!-- candle 未传 -dVersion 时的兜底，避免 CNDL0108（版本号非法） -->
+  <?ifndef Version ?>
+  <?define Version = "1.0.0" ?>
+  <?endif?>
+
   <Product Id="*"
            Name="GestionFacturas"
            Language="1033"

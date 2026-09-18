@@ -31,6 +31,13 @@ function Find-WixBin {
     return $null
 }
 
+# 版本号必须是 x.x.x（x.x.x.x 也接受），否则 candle 会报 CNDL0108
+if ($Version -notmatch '^\d+\.\d+(\.\d+)?(\.\d+)?$') {
+    Write-Host "==> 版本号 '$Version' 非法，回退为 1.0.0" -ForegroundColor Yellow
+    $Version = "1.0.0"
+}
+Write-Host "版本号: $Version" -ForegroundColor Cyan
+
 $wix = Find-WixBin
 if (-not $wix) {
     Write-Host "==> 未检测到 WiX Toolset v3。" -ForegroundColor Yellow
@@ -76,7 +83,8 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 # ---------------------------------------------------------------- 2) 收割文件
 Write-Host "==> [2/4] heat 收集文件清单 ..." -ForegroundColor Cyan
 $appFiles = Join-Path $msiDir "AppFiles.wxs"
-& $heat dir $srcDir -cg AppFiles -dr INSTALLFOLDER -srd -ag -sfrag `
+# -sreg：不收割 SelfReg 信息（PyInstaller 产物不是 COM 自注册 DLL，可消掉成百条 HEAT5150 警告）
+& $heat dir $srcDir -cg AppFiles -dr INSTALLFOLDER -srd -ag -sfrag -sreg `
     -var var.SourceDir -out $appFiles
 if ($LASTEXITCODE -ne 0) {
     Write-Host "==> heat 失败（退出码 $LASTEXITCODE）" -ForegroundColor Red
@@ -86,7 +94,7 @@ if ($LASTEXITCODE -ne 0) {
 # ---------------------------------------------------------------- 3) 编译
 Write-Host "==> [3/4] candle 编译 ..." -ForegroundColor Cyan
 $product = Join-Path $PSScriptRoot "msi\Product.wxs"
-& $candle -nologo -dVersion=$Version "-dSourceDir=$srcDir" `
+& $candle -nologo "-dVersion=$Version" "-dSourceDir=$srcDir" `
     -out "$msiDir\" $product $appFiles
 if ($LASTEXITCODE -ne 0) {
     Write-Host "==> candle 失败（退出码 $LASTEXITCODE）" -ForegroundColor Red
