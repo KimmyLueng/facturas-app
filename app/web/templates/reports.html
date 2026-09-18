@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>财务报表</h2>
+<form method="get" class="card">
+  <div class="form-row">
+    <label>报表
+      <select name="type">
+        <option value="balance" {{ 'selected' if rtype == 'balance' }}>资产负债表 Balance</option>
+        <option value="income" {{ 'selected' if rtype == 'income' }}>利润表 Resultados</option>
+      </select>
+    </label>
+    <label>起始日期<input type="date" name="from" value="{{ frm }}"></label>
+    <label>结束日期<input type="date" name="to" value="{{ to }}"></label>
+  </div>
+  <button type="submit">查询</button>
+</form>
+
+{% if error %}
+<div class="alert err">{{ error }}</div>
+{% endif %}
+
+<div class="table-wrap">
+<table>
+  <tr><th>项目</th><th class="num">金额（本位币）</th></tr>
+  {% for r in rows %}
+    {% if r.kind == 'section' %}
+    <tr class="section"><td colspan="2">{{ r.label }}</td></tr>
+    {% else %}
+    <tr>
+      <td class="indent-{{ [r.depth, 3] | min }}">{{ r.label }}</td>
+      <td class="num">{{ r.value | money }}</td>
+    </tr>
+    {% endif %}
+  {% else %}
+  <tr><td colspan="2" class="empty">请选择条件后查询</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

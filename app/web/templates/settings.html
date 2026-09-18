@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>设置</h2>
+<form method="post" class="card">
+  <div class="form-row">
+    <label>期初资本（Capital inicial）
+      <input name="capital_inicial" value="{{ s.capital_inicial }}" inputmode="decimal">
+    </label>
+    <label>本位币
+      <select name="base_currency">
+        {% for c in currencies %}
+        <option value="{{ c }}" {{ 'selected' if s.base_currency == c }}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>1 USD = X 本位币<input name="usd_to_base" value="{{ s.usd_to_base }}" inputmode="decimal"></label>
+    <label>官方汇率 1 USD = X VES<input name="usd_ves_official" value="{{ s.usd_ves_official }}" inputmode="decimal"></label>
+    <label>1 USD = X CNY<input name="usd_cny" value="{{ s.usd_cny }}" inputmode="decimal"></label>
+    <label>分店列表（逗号分隔）
+      <input name="stores" value="{{ s.stores | join(', ') }}">
+    </label>
+  </div>
+  <button type="submit">保存设置</button>
+</form>
+
+<form method="post" action="{{ url_for('settings_fetch_rates') }}">
+  <button class="secondary" type="submit">在线获取官方汇率（BCV / 人民币）</button>
+</form>
+
+<h3>数据目录</h3>
+<p class="hint">{{ db_path }}</p>
+{% endblock %}

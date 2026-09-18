@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>经营概览</h2>
+<div class="grid">
+  <div class="stat"><div class="k">单据总数</div><div class="v">{{ n_docs }}</div></div>
+  <div class="stat"><div class="k">进货合计</div><div class="v">{{ purchases | money }}</div></div>
+  <div class="stat"><div class="k">销售合计</div><div class="v">{{ sales | money }}</div></div>
+  <div class="stat"><div class="k">收入日报合计</div><div class="v">{{ income_total | money }}</div></div>
+  <div class="stat"><div class="k">支出日报合计</div><div class="v">{{ expense_total | money }}</div></div>
+  <div class="stat"><div class="k">低库存商品</div><div class="v">{{ low | length }}</div></div>
+</div>
+
+<h3>最近单据</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>日期</th><th>单号</th><th>类型</th><th>往来单位</th><th class="num">金额</th></tr>
+  {% for d in recent_docs %}
+  <tr>
+    <td>{{ d.date or '' }}</td>
+    <td>{{ d.doc_number or '' }}</td>
+    <td>{{ '进货' if d.direction == 'compra' else '销售' }}</td>
+    <td>{{ d.partner_name or '' }}</td>
+    <td class="num">{{ d.total | money }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">暂无单据</td></tr>
+  {% endfor %}
+</table>
+</div>
+
+<h3>最近支出</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>日期</th><th>摘要</th><th>类别</th><th>付款方式</th><th>币种</th><th class="num">金额</th></tr>
+  {% for r in recent_expenses %}
+  <tr>
+    <td>{{ r.date or '' }}</td>
+    <td>{{ r.summary or '' }}</td>
+    <td>{{ r.category_label or r.category or '' }}</td>
+    <td>{{ r.method or '' }}</td>
+    <td>{{ r.currency or '' }}</td>
+    <td class="num">{{ r.amount | money }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="empty">暂无支出</td></tr>
+  {% endfor %}
+</table>
+</div>
+
+{% if low %}
+<h3>低库存预警</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>编码</th><th>名称</th><th class="num">库存</th><th class="num">预警值</th></tr>
+  {% for p in low %}
+  <tr><td>{{ p.code }}</td><td>{{ p.name }}</td>
+      <td class="num">{{ p.stock_qty }}</td><td class="num">{{ p.min_stock }}</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endif %}
+{% endblock %}

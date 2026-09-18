@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>店铺收入日报</h2>
+<form method="post" class="card">
+  <div class="form-row">
+    <label>日期<input type="date" name="date" value="{{ today }}" required></label>
+    <label>分店
+      <select name="store">
+        {% for s in stores %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>支付方式
+      <select name="source" id="source">
+        {% for s in sources %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>币种<select name="currency" id="currency"></select></label>
+    <label>金额<input name="amount" inputmode="decimal" placeholder="0.00" required></label>
+    <label>备注<input name="notes" placeholder="选填"></label>
+  </div>
+  <button type="submit">保存一笔</button>
+  <span class="hint">同一天可分多次录入：不同支付方式 / 不同币种各存一笔。</span>
+</form>
+
+<h3>收入明细（一笔一行）</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>日期</th><th>分店</th><th>支付方式</th><th>币种</th><th class="num">金额</th><th>备注</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.date }}</td>
+    <td>{{ r.store }}</td>
+    <td>{{ r.source }}</td>
+    <td>{{ r.currency_label or r.currency }}</td>
+    <td class="num">{{ r.amount | money }}</td>
+    <td>{{ r.notes }}</td>
+    <td>
+      <form method="post" action="{{ url_for('income_delete', row_id=r.row_id) }}"
+            onsubmit="return confirm('删除该笔收入？');">
+        <button type="submit" class="link">删除</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="empty">暂无收入记录</td></tr>
+  {% endfor %}
+</table>
+</div>
+
+<script>
+const SOURCE_CUR = {{ source_currencies | tojson }};
+const CUR_LABEL = {{ currencies | tojson }};
+function fillCurrencies() {
+  const src = document.getElementById('source').value;
+  const sel = document.getElementById('currency');
+  const list = SOURCE_CUR[src] || [];
+  const cur = sel.value;
+  sel.innerHTML = '';
+  list.forEach(function (c) {
+    const o = document.createElement('option');
+    o.value = c;
+    o.textContent = CUR_LABEL[c] || c;
+    sel.appendChild(o);
+  });
+  if (list.indexOf(cur) >= 0) sel.value = cur;
+}
+document.getElementById('source').addEventListener('change', fillCurrencies);
+fillCurrencies();
+</script>
+{% endblock %}

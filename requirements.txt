@@ -1,0 +1,11 @@
+# OCR（西班牙语识别）
+paddlepaddle>=3.0.0
+paddleocr>=3.0.0
+# PDF 转图片
+pymupdf>=1.24.0
+# 图片处理
+Pillow>=10.0.0
+# PDF 报表导出
+reportlab>=4.0.0
+# Excel 期初余额导入
+openpyxl>=3.1.0

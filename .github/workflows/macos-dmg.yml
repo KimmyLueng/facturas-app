@@ -1,0 +1,64 @@
+name: macOS DMG
+
+# 云端构建 macOS 安装包：无需 Mac 电脑
+#   Actions → macOS DMG → Run workflow（手动触发）
+#   打 tag（v1.0.0）时自动构建并发布到 Release
+on:
+  workflow_dispatch:
+    inputs:
+      with_ocr:
+        description: '包含 OCR（paddlepaddle 无 macOS 官方 wheel，通常保持 false）'
+        type: boolean
+        default: false
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  build:
+    # macos-latest = Apple Silicon(arm64)；需要 Intel(x86_64) 版请把这里改成 macos-13
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 规范脚本换行符（CRLF 会让 bash 报 bad interpreter）
+        run: find . -name '*.sh' -print0 | xargs -0 perl -pi -e 's/\r\n?/\n/g'
+
+      - name: 安装 Python 依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller reportlab openpyxl pymupdf Pillow
+          if [ "${{ inputs.with_ocr }}" = "true" ]; then
+            python -m pip install paddlepaddle paddleocr || \
+              echo "!! OCR 依赖安装失败，继续构建无 OCR 版本"
+          fi
+
+      - name: 打包 .app + .dmg
+        run: |
+          chmod +x platforms/macos/*.sh build_all.sh
+          if [ "${{ inputs.with_ocr }}" = "true" ]; then
+            ./build_all.sh macos
+          else
+            ./build_all.sh macos --no-ocr
+          fi
+
+      - name: 上传 dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: GestionFacturas-macos-dmg
+          path: dist/GestionFacturas.dmg
+
+      - name: 上传 .app
+        uses: actions/upload-artifact@v4
+        with:
+          name: GestionFacturas-macos-app
+          path: dist/GestionFacturas.app
+
+      - name: 发布到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/GestionFacturas.dmg

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>商品库存</h2>
+<form method="post" class="card">
+  <div class="form-row">
+    <label>编码<input name="code" required></label>
+    <label>名称<input name="name"></label>
+    <label>分类<input name="category"></label>
+    <label>单位<input name="unit" placeholder="UND/KG"></label>
+    <label>成本价<input name="cost_price" inputmode="decimal"></label>
+    <label>售价<input name="sale_price" inputmode="decimal"></label>
+    <label>库存数量<input name="stock_qty" inputmode="decimal"></label>
+    <label>预警库存<input name="min_stock" inputmode="decimal"></label>
+    <label>供应商<input name="supplier"></label>
+  </div>
+  <button type="submit">保存商品</button>
+</form>
+
+<h3>商品列表</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>编码</th><th>名称</th><th>分类</th><th class="num">成本</th><th class="num">售价</th>
+      <th class="num">库存</th><th class="num">预警</th><th></th></tr>
+  {% for p in products %}
+  <tr>
+    <td>{{ p.code }}</td>
+    <td>{{ p.name }}</td>
+    <td>{{ p.category }}</td>
+    <td class="num">{{ p.cost_price | money }}</td>
+    <td class="num">{{ p.sale_price | money }}</td>
+    <td class="num">{{ p.stock_qty }}</td>
+    <td class="num">{{ p.min_stock }}</td>
+    <td>
+      <form method="post" action="{{ url_for('products_delete', pid=p.id) }}"
+            onsubmit="return confirm('删除该商品？');">
+        <button type="submit" class="link">删除</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="empty">暂无商品</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

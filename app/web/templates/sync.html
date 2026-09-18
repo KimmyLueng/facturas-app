@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>数据同步（WebDAV）</h2>
+
+<div class="card">
+  <div>上次同步：<b>{{ state.last_sync_at or '从未同步' }}</b>
+    （{{ {'upload': '上传', 'download': '恢复'}.get(state.last_direction, '-') }}）</div>
+  <div>云端：{% if info %}
+    更新于 {{ info.updated_at }}，{{ (info.db_size / 1024) | round | int }} KB，设备 {{ info.device }}
+    {% else %}暂无备份（或不可用）{% endif %}</div>
+  <div>建议：{{ plan.message or '-' }}</div>
+</div>
+
+<form method="post" class="card">
+  <div class="form-row">
+    <label>服务器地址
+      <input name="url" value="{{ cfg.url }}" placeholder="https://dav.jianguoyun.com/dav/">
+    </label>
+    <label>用户名<input name="user" value="{{ cfg.user }}"></label>
+    <label>密码<input type="password" name="password" value="{{ cfg.password }}"></label>
+    <label>云端目录<input name="remote_dir" value="{{ cfg.remote_dir }}"></label>
+    <label>自动同步间隔
+      <select name="interval_min">
+        {% for v in ['15', '30', '60', '120'] %}
+        <option value="{{ v }}" {{ 'selected' if cfg.interval_min | string == v }}>{{ v }} 分钟</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <p>
+    <label style="display:inline"><input type="checkbox" name="enabled" value="1"
+      style="display:inline;width:auto" {{ 'checked' if cfg.enabled }}> 启用同步</label>
+    <label style="display:inline;margin-left:14px"><input type="checkbox" name="auto_sync" value="1"
+      style="display:inline;width:auto" {{ 'checked' if cfg.auto_sync }}> 自动同步</label>
+    <label style="display:inline;margin-left:14px"><input type="checkbox" name="verify_ssl" value="1"
+      style="display:inline;width:auto" {{ 'checked' if cfg.verify_ssl }}> 校验 SSL 证书</label>
+    <label style="display:inline;margin-left:14px"><input type="checkbox" name="force" value="1"
+      style="display:inline;width:auto"> 忽略冲突（强制覆盖）</label>
+  </p>
+  <button type="submit" name="action" value="save">保存配置</button>
+  <button type="submit" name="action" value="test" class="secondary">测试连接</button>
+  <button type="submit" name="action" value="upload">上传到云端</button>
+  <button type="submit" name="action" value="download">从云端恢复</button>
+  <button type="submit" name="action" value="auto" class="secondary">立即同步</button>
+</form>
+
+<h3>同步记录</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>时间</th><th>操作</th><th>结果</th><th>说明</th></tr>
+  {% for r in logs %}
+  <tr>
+    <td>{{ r.time }}</td>
+    <td>{{ r.action }}</td>
+    <td>{{ '成功' if r.ok else '失败' }}</td>
+    <td>{{ r.message }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="empty">暂无同步记录</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

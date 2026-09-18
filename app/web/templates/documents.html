@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>单据管理</h2>
+<p class="hint">Web 端提供手工录入；OCR 扫描识别请在 Windows / macOS 桌面客户端使用。</p>
+<form method="post" class="card">
+  <div class="form-row">
+    <label>方向
+      <select name="direction">
+        <option value="compra">进货 Compra</option>
+        <option value="venta">销售 Venta</option>
+      </select>
+    </label>
+    <label>单据类型<input name="doc_type" value="FACTURA"></label>
+    <label>单号<input name="doc_number" placeholder="Factura Nº"></label>
+    <label>日期<input type="date" name="date" value="{{ today }}"></label>
+    <label>往来单位<input name="partner"></label>
+    <label>税号<input name="tax_id"></label>
+    <label>分店
+      <select name="store">
+        <option value=""></option>
+        {% for s in stores %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>币种
+      <select name="currency">
+        <option value=""></option>
+        {% for c in currencies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>单据汇率<input name="exchange_rate" inputmode="decimal" placeholder="0"></label>
+    <label>税率 %<input name="iva_rate" inputmode="decimal" placeholder="16"></label>
+    <label>总额<input name="total" inputmode="decimal" placeholder="0.00" required></label>
+  </div>
+  <button type="submit">保存单据</button>
+</form>
+
+<h3>单据列表</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>日期</th><th>单号</th><th>方向</th><th>往来单位</th><th>币种</th><th class="num">金额</th><th></th></tr>
+  {% for d in docs %}
+  <tr>
+    <td>{{ d.date or '' }}</td>
+    <td>{{ d.doc_number or '' }}</td>
+    <td>{{ '进货' if d.direction == 'compra' else '销售' }}</td>
+    <td>{{ d.partner_name or '' }}</td>
+    <td>{{ d.currency or '' }}</td>
+    <td class="num">{{ d.total | money }}</td>
+    <td>
+      <form method="post" action="{{ url_for('documents_delete', doc_id=d.id) }}"
+            onsubmit="return confirm('删除该单据？');">
+        <button type="submit" class="link">删除</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="empty">暂无单据</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

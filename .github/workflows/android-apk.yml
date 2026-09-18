@@ -1,0 +1,54 @@
+name: Android APK
+
+# 云端构建 APK：无需本机安装 Android Studio / JDK / SDK
+#   Actions → Android APK → Run workflow（手动触发）
+#   打 tag（v1.0.0）时自动构建并发布到 Release
+on:
+  workflow_dispatch:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 规范脚本换行符（CRLF 会让 bash 报 bad interpreter）
+        run: find . -name '*.sh' -print0 | xargs -0 perl -pi -e 's/\r\n?/\n/g'
+
+      - name: 安装 Android SDK 组件
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -3 || true
+
+      - name: 同步 Python 业务代码到 Android 工程
+        run: bash platforms/android/build_android.sh --sync-only
+
+      - name: 生成 Gradle Wrapper
+        working-directory: platforms/android
+        run: gradle wrapper --gradle-version 8.5
+
+      - uses: gradle/actions/setup-gradle@v3
+
+      - name: 构建 Debug APK
+        working-directory: platforms/android
+        run: ./gradlew assembleDebug --no-daemon
+        # 注：Chaquopy 自 12.0.1 起免费开源，无需 license key
+
+      - name: 上传 APK（构件）
+        uses: actions/upload-artifact@v4
+        with:
+          name: GestionFacturas-debug-apk
+          path: platforms/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: 发布到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: platforms/android/app/build/outputs/apk/debug/app-debug.apk

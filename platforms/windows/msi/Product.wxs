@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GestionFacturas Windows MSI（WiX Toolset v3）
+  用法由 build_msi.ps1 驱动：
+    heat.exe  自动收割 dist\GestionFacturas 下全部文件 → AppFiles.wxs（片段）
+    candle.exe 编译 Product.wxs + AppFiles.wxs
+    light.exe  链接 → dist\installer\GestionFacturas.msi
+  一般不需要手工编辑本文件；改版本号请改 build_msi.ps1 的 -Version 参数。
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+  <Product Id="*"
+           Name="GestionFacturas"
+           Language="1033"
+           Version="$(var.Version)"
+           Manufacturer="GestionFacturas"
+           UpgradeCode="{9F6B2E41-5C8A-4D3E-9F72-1B4C6D8E0A35}">
+
+    <Package InstallerVersion="200"
+             InstallPrivileges="elevated"
+             InstallScope="perMachine"
+             Compressed="yes"
+             Manufacturer="GestionFacturas"
+             Description="西班牙语单据财务管理系统（Windows）"
+             Comments="扫描导入西语进货/出货单据，自动生成资产负债表与利润表" />
+
+    <!-- 覆盖安装：同版本也允许升级 -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="已安装了较新的版本，安装将终止。" />
+
+    <Media Id="1" Cabinet="app.cab" EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- 安装向导：可选择安装目录 -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <UIRef Id="WixUI_InstallDir" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="GestionFacturas">
+          <Component Id="CmpFolderPerms" Guid="*">
+            <CreateFolder>
+              <!-- 数据库与设置写在安装目录下，需让普通用户可写 -->
+              <util:PermissionEx User="Users" GenericAll="yes" />
+            </CreateFolder>
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="AppProgramMenuFolder" Name="GestionFacturas" />
+      </Directory>
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="CmpShortcuts" Guid="*">
+        <Shortcut Id="StartMenuShortcut" Name="GestionFacturas"
+                  Target="[INSTALLFOLDER]GestionFacturas.exe"
+                  Directory="AppProgramMenuFolder"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <Shortcut Id="DesktopShortcut" Name="GestionFacturas"
+                  Target="[INSTALLFOLDER]GestionFacturas.exe"
+                  Directory="DesktopFolder"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="CleanUpShortcut" Directory="AppProgramMenuFolder"
+                      On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\GestionFacturas" Name="installed"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainFeature" Title="GestionFacturas" Level="1"
+             ConfigurableDirectory="INSTALLFOLDER">
+      <!-- AppFiles 由 heat.exe 生成（AppFiles.wxs） -->
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="CmpShortcuts" />
+      <ComponentRef Id="CmpFolderPerms" />
+    </Feature>
+  </Product>
+</Wix>

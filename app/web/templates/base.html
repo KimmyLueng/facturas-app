@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GestionFacturas · 单据财务管理系统</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <div class="brand">GESTIÓN DE FACTURAS</div>
+  <nav>
+    {% for key, label in nav %}
+    <a href="{{ url_for(key) }}" class="{{ 'on' if active == key }}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+</header>
+<main>
+  {% if request.args.get('msg') %}
+  <div class="alert {{ 'ok' if request.args.get('ok') == '1' else 'err' }}">{{ request.args.get('msg') }}</div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+<footer>数据目录：{{ db_path }}</footer>
+</body>
+</html>

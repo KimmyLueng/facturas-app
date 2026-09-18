@@ -1,0 +1,56 @@
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'          // Chaquopy 17：在 APK 内嵌入 CPython
+}
+
+android {
+    namespace 'com.example.gestionfacturas'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.example.gestionfacturas'
+        minSdk 24                    // Chaquopy 17 要求 ≥ 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+
+        ndk {
+            // Python 3.12 仅支持 64 位：arm64-v8a（真机）+ x86_64（模拟器）
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug      // 正式发布请换成自己的签名
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        // 必须与构建机上的 Python 主次版本一致（当前用 3.12）
+        // 若本机是 3.11：改这里为 "3.11"，并把 abiFilters 改成 'arm64-v8a','armeabi-v7a','x86_64'
+        version = "3.12"
+
+        // 找不到 Python 时手动指定，例如：
+        // buildPython("C:/Users/<你>/AppData/Local/Programs/Python/Python312/python.exe")
+        // buildPython("py", "-3.12")
+
+        pip {
+            install("Flask==3.0.3")
+            install("Werkzeug==3.0.3")
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+}

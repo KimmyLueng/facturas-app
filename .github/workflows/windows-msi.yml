@@ -1,0 +1,68 @@
+name: Windows MSI
+
+# 云端构建 Windows 安装包：本机无需安装 WiX Toolset
+#   Actions → Windows MSI → Run workflow（手动触发）
+#   打 tag（v1.0.0）时自动构建并发布到 Release
+on:
+  workflow_dispatch:
+    inputs:
+      with_ocr:
+        description: '包含 OCR（体积大、耗时长；不含 OCR 约 80MB）'
+        type: boolean
+        default: false
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装 Python 依赖
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller reportlab openpyxl pymupdf Pillow
+          if ('${{ inputs.with_ocr }}' -eq 'true') {
+            python -m pip install paddlepaddle paddleocr
+          }
+
+      - name: 准备 WiX Toolset v3
+        shell: pwsh
+        run: |
+          if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
+            $wix = "C:\Program Files (x86)\WiX Toolset v3.11\bin"
+            if (-not (Test-Path "$wix\candle.exe")) {
+              choco install wixtoolset --no-progress -y
+            }
+            Add-Content -Path $env:GITHUB_PATH -Value $wix
+          }
+
+      - name: 构建 MSI
+        shell: pwsh
+        run: |
+          $v = '${{ github.ref_name }}'
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { $v = '1.0.0' }
+          if ('${{ inputs.with_ocr }}' -eq 'true') {
+            .\platforms\windows\build_msi.ps1 -Rebuild -Version $v
+          } else {
+            .\platforms\windows\build_msi.ps1 -Rebuild -NoOcr -Version $v
+          }
+          if (-not (Test-Path "dist\installer\GestionFacturas.msi")) { exit 1 }
+
+      - name: 上传 MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: GestionFacturas-windows-msi
+          path: dist/installer/GestionFacturas.msi
+
+      - name: 发布到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/installer/GestionFacturas.msi

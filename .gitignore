@@ -1,0 +1,44 @@
+# ---------- 构建产物 ----------
+build/
+dist/
+spec_tmp/
+*.pyc
+__pycache__/
+*.egg-info/
+*.apk
+*.aab
+*.msi
+*.dmg
+
+# ---------- 运行时数据（不要入库） ----------
+*.db
+*.sqlite
+*.sqlite3
+facturas.db*
+data/
+backups/
+logs/
+*.log
+
+# ---------- 环境 ----------
+.venv/
+venv/
+env/
+.env
+
+# ---------- 编辑器 / 系统 ----------
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ---------- Android 工程 ----------
+platforms/android/app/build/
+platforms/android/.gradle/
+platforms/android/local.properties
+# 每次构建自动同步进去的源码副本
+platforms/android/app/src/main/python/app/
+
+# ---------- macOS 工程 ----------
+platforms/macos/build/
+platforms/macos/dist/

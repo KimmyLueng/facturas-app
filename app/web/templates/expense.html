@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>店铺支出日报</h2>
+<form method="post" class="card">
+  <div class="form-row">
+    <label>日期<input type="date" name="date" value="{{ today }}" required></label>
+    <label>摘要<input name="summary" placeholder="选填"></label>
+    <label>费用类别
+      <select name="category">
+        {% for key, label in categories %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>付款方式
+      <select name="method">
+        {% for m in methods %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>币种
+      <select name="currency">
+        {% for c in currencies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>金额<input name="amount" inputmode="decimal" placeholder="0.00" required></label>
+    <label>备注<input name="notes" placeholder="选填"></label>
+  </div>
+  <button type="submit">保存一笔</button>
+  <span class="hint">同一天可录入多笔：不同类别 / 不同付款方式 / 不同币种各存一笔。</span>
+</form>
+
+<h3>支出明细（一笔一行）</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>日期</th><th>摘要</th><th>类别</th><th>付款方式</th><th>币种</th><th class="num">金额</th><th>备注</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.date }}</td>
+    <td>{{ r.summary }}</td>
+    <td>{{ r.category_label or r.category }}</td>
+    <td>{{ r.method }}</td>
+    <td>{{ r.currency }}</td>
+    <td class="num">{{ r.amount | money }}</td>
+    <td>{{ r.notes }}</td>
+    <td>
+      <form method="post" action="{{ url_for('expense_delete', rec_id=r.id) }}"
+            onsubmit="return confirm('删除该笔支出？');">
+        <button type="submit" class="link">删除</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="empty">暂无支出记录</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

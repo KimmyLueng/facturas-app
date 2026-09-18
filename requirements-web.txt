@@ -1,0 +1,2 @@
+# Web 界面 / Android APK 所需依赖（Tk 桌面客户端不需要）
+Flask>=3.0
