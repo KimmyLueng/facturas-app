@@ -43,7 +43,8 @@
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="GestionFacturas">
-          <Component Id="CmpFolderPerms" Guid="*">
+          <!-- KeyPath 是目录，不能用 Guid="*"，必须写死（否则 light 报 LGHT0230） -->
+          <Component Id="CmpFolderPerms" Guid="{A1E4C7B2-3D5F-4A8B-9C6E-7F2D1B8A4C30}">
             <CreateFolder>
               <!-- 数据库与设置写在安装目录下，需让普通用户可写 -->
               <util:PermissionEx User="Users" GenericAll="yes" />
