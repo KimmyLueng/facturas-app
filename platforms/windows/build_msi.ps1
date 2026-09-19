@@ -95,13 +95,20 @@ if ($LASTEXITCODE -ne 0) {
 # ProgramFiles64Folder（64 位目录），二者不匹配会让 light 抛出成百上千条 ICE80。
 # 这里统一给收割出的 Component 打上 Win64="yes"，与 Package Platform="x64" 保持一致。
 $wxsText = [System.IO.File]::ReadAllText($appFiles, [System.Text.Encoding]::UTF8)
+# 注意：模式必须带 \b，否则会把 <ComponentGroup> 也匹配进去，生成非法 XML
 $wxsText = [System.Text.RegularExpressions.Regex]::Replace(
     $wxsText,
-    '<Component(?![^>]*\bWin64\s*=)',
+    '<Component\b(?![^>]*\bWin64\s*=)',
     '<Component Win64="yes"')
 [System.IO.File]::WriteAllText($appFiles, $wxsText, (New-Object System.Text.UTF8Encoding($false)))
 $marked = ([System.Text.RegularExpressions.Regex]::Matches($wxsText, '<Component\b')).Count
 Write-Host "    已将 $marked 个组件标记为 Win64（消除 ICE80）" -ForegroundColor DarkGray
+try {
+    $null = [xml]$wxsText   # 先自检 XML 合法性，避免带着破损文件进 candle（报错更难定位）
+} catch {
+    Write-Host "==> 改写后的 AppFiles.wxs 不是合法 XML：$($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
 
 # ---------------------------------------------------------------- 3) 编译
 Write-Host "==> [3/4] candle 编译 ..." -ForegroundColor Cyan
