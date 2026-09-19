@@ -22,7 +22,10 @@
            Manufacturer="GestionFacturas"
            UpgradeCode="{9F6B2E41-5C8A-4D3E-9F72-1B4C6D8E0A35}">
 
+    <!-- Platform=x64：产物为 64 位（PyInstaller x64），且安装目录是 ProgramFiles64Folder。
+         必须与 AppFiles.wxs 里 heat 生成的组件 Win64="yes" 保持一致，否则 light 报 ICE80。 -->
     <Package InstallerVersion="200"
+             Platform="x64"
              InstallPrivileges="elevated"
              InstallScope="perMachine"
              Compressed="yes"
@@ -45,7 +48,7 @@
       <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="GestionFacturas">
           <!-- KeyPath 是目录，不能用 Guid="*"，必须写死（否则 light 报 LGHT0230） -->
-          <Component Id="CmpFolderPerms" Guid="{A1E4C7B2-3D5F-4A8B-9C6E-7F2D1B8A4C30}">
+          <Component Id="CmpFolderPerms" Guid="{A1E4C7B2-3D5F-4A8B-9C6E-7F2D1B8A4C30}" Win64="yes">
             <CreateFolder>
               <!-- 数据库与设置写在安装目录下，需让普通用户可写 -->
               <util:PermissionEx User="Users" GenericAll="yes" />
@@ -60,7 +63,7 @@
     </Directory>
 
     <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="CmpShortcuts" Guid="*">
+      <Component Id="CmpShortcuts" Guid="*" Win64="yes">
         <Shortcut Id="StartMenuShortcut" Name="GestionFacturas"
                   Target="[INSTALLFOLDER]GestionFacturas.exe"
                   Directory="AppProgramMenuFolder"

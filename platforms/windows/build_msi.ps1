@@ -91,6 +91,18 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
+# heat 默认按 32 位（Win64 缺省 = no）收割组件，而 Product.wxs 的安装目录是
+# ProgramFiles64Folder（64 位目录），二者不匹配会让 light 抛出成百上千条 ICE80。
+# 这里统一给收割出的 Component 打上 Win64="yes"，与 Package Platform="x64" 保持一致。
+$wxsText = [System.IO.File]::ReadAllText($appFiles, [System.Text.Encoding]::UTF8)
+$wxsText = [System.Text.RegularExpressions.Regex]::Replace(
+    $wxsText,
+    '<Component(?![^>]*\bWin64\s*=)',
+    '<Component Win64="yes"')
+[System.IO.File]::WriteAllText($appFiles, $wxsText, (New-Object System.Text.UTF8Encoding($false)))
+$marked = ([System.Text.RegularExpressions.Regex]::Matches($wxsText, '<Component\b')).Count
+Write-Host "    已将 $marked 个组件标记为 Win64（消除 ICE80）" -ForegroundColor DarkGray
+
 # ---------------------------------------------------------------- 3) 编译
 Write-Host "==> [3/4] candle 编译 ..." -ForegroundColor Cyan
 $product = Join-Path $PSScriptRoot "msi\Product.wxs"
@@ -106,8 +118,9 @@ if ($LASTEXITCODE -ne 0) {
 # ---------------------------------------------------------------- 4) 链接
 Write-Host "==> [4/4] light 生成 MSI ..." -ForegroundColor Cyan
 $msi = Join-Path $outDir "GestionFacturas.msi"
+# -sice:ICE80 仅作兜底（组件已全部标为 Win64，正常不会再触发）
 & $light -nologo -ext WixUIExtension -ext WixUtilExtension `
-    -sice:ICE57 -sice:ICE60 -sice:ICE64 -sice:ICE83 `
+    -sice:ICE57 -sice:ICE60 -sice:ICE64 -sice:ICE83 -sice:ICE80 `
     -out $msi (Join-Path $msiDir "Product.wixobj") (Join-Path $msiDir "AppFiles.wixobj")
 if ($LASTEXITCODE -ne 0) {
     Write-Host "==> light 失败（退出码 $LASTEXITCODE）" -ForegroundColor Red
