@@ -1,14 +1,19 @@
 """币种与汇率：委内瑞拉官方汇率在线获取、美元/本位币汇率、金额换算。
 
-官方汇率源（dolarapi，来源 BCV 委内瑞拉中央银行）：
+委内瑞拉官方汇率源（优先使用 dolarapi / BCV）：
     GET https://ve.dolarapi.com/v1/dolares/oficial
     -> {"moneda":"USD","fuente":"oficial","promedio":785.07,
         "fechaActualizacion":"2026-08-25T00:00:00-04:00"}
-美元兑欧元（备用源）：
+
+通用汇率备用源（open.er-api / exchangerate-api）：
     GET https://open.er-api.com/v6/latest/USD
+    GET https://api.exchangerate-api.com/v4/latest/USD
+    -> {"rates":{"EUR":0.85,"CNY":6.45,"VES":36.5,...},
+        "time_last_update_utc":"..."}
 """
 import json
 import urllib.request
+from typing import Any
 
 from app import config
 
@@ -27,12 +32,54 @@ CURRENCY_NAMES = {
     "USDT": "USDT 泰达币（稳定币，1:1 美元）",
 }
 
+# 委内瑞拉官方/备用数据源（优先官方 dolarapi，失败后使用通用汇率 API）
+_VES_SOURCES = [
+    ("https://ve.dolarapi.com/v1/dolares/oficial", "dolarapi"),
+    ("https://api.ve.dolarapi.com/v1/dolares/oficial", "dolarapi"),
+    ("https://api.exchangerate-api.com/v4/latest/USD", "exchangerate-api"),
+    ("https://open.er-api.com/v6/latest/USD", "open.er-api"),
+]
 
-def _get_json(url: str, timeout: int = 12) -> dict:
+# 通用 USD -> 其他币种 备用数据源
+_GENERIC_RATES_SOURCES = [
+    "https://api.exchangerate-api.com/v4/latest/USD",
+    "https://open.er-api.com/v6/latest/USD",
+]
+
+
+def _get_json(url: str, timeout: int = 15) -> Any:
     """GET JSON，带 UA 与超时。"""
     req = urllib.request.Request(url, headers={"User-Agent": "GestionFacturas/1.0"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
+
+
+def _extract_date(data: dict) -> str:
+    """从不同 API 返回中提取更新时间。"""
+    return (
+        data.get("fechaActualizacion")
+        or data.get("time_last_update_utc")
+        or data.get("time_last_update")
+        or data.get("date")
+        or ""
+    )
+
+
+def _extract_rate(data: dict, code: str) -> float:
+    """从通用汇率 API 返回中读取 1 USD = X code。"""
+    rates = data.get("rates", {})
+    if code in rates:
+        val = rates[code]
+    elif code in data:
+        val = data[code]
+    elif "rate" in data:
+        val = data["rate"]
+    else:
+        raise ValueError(f"{code} 未找到")
+    rate = float(val)
+    if rate <= 0:
+        raise ValueError(f"{code} 汇率为空")
+    return rate
 
 
 def fetch_usd_ves() -> dict:
@@ -41,20 +88,23 @@ def fetch_usd_ves() -> dict:
     返回 {"usd_ves": float, "date": str, "source": str}；
     全部源失败时抛 RuntimeError。
     """
-    urls = [
-        "https://ve.dolarapi.com/v1/dolares/oficial",
-        "https://api.ve.dolarapi.com/v1/dolares/oficial",
-    ]
     last_err = None
-    for url in urls:
+    for url, kind in _VES_SOURCES:
         try:
             data = _get_json(url)
-            rate = float(data.get("promedio") or data.get("venta") or 0)
-            if rate <= 0:
-                raise ValueError("汇率为空")
+            if kind == "dolarapi":
+                rate = float(data.get("promedio") or data.get("venta") or 0)
+                if rate <= 0:
+                    raise ValueError("BCV 官方汇率为空")
+                return {
+                    "usd_ves": round(rate, 4),
+                    "date": data.get("fechaActualizacion", ""),
+                    "source": url,
+                }
+            rate = _extract_rate(data, "VES")
             return {
                 "usd_ves": round(rate, 4),
-                "date": data.get("fechaActualizacion", ""),
+                "date": _extract_date(data),
                 "source": url,
             }
         except Exception as e:  # noqa: BLE001
@@ -64,38 +114,49 @@ def fetch_usd_ves() -> dict:
 
 def fetch_usd_eur() -> dict:
     """在线获取美元兑欧元汇率（1 USD = X EUR）。"""
-    try:
-        data = _get_json("https://open.er-api.com/v6/latest/USD")
-        eur = float(data.get("rates", {}).get("EUR") or 0)
-        if eur <= 0:
-            raise ValueError("EUR 汇率为空")
-        return {"usd_eur": round(eur, 4),
-                "date": data.get("time_last_update_utc", "")}
-    except Exception as e:  # noqa: BLE001
-        raise RuntimeError(f"无法获取美元/欧元汇率：{e}") from e
+    last_err = None
+    for url in _GENERIC_RATES_SOURCES:
+        try:
+            data = _get_json(url)
+            rate = _extract_rate(data, "EUR")
+            return {
+                "usd_eur": round(rate, 4),
+                "date": _extract_date(data),
+                "source": url,
+            }
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+    raise RuntimeError(f"无法获取美元/欧元汇率：{last_err}")
 
 
 def fetch_usd_rates(*codes) -> dict:
-    """一次请求获取 1 USD 兑多个币种（open.er-api.com）。
+    """一次请求获取 1 USD 兑多个币种（带多个备用源）。
 
-    返回 {"EUR": x, "CNY": y, "date": "..."}；任一币种缺失即报错。
+    返回 {"EUR": x, "CNY": y, "date": "...", "source": "..."}；
+    任一币种缺失即继续尝试下一个源，全部失败时报错。
     """
-    data = _get_json("https://open.er-api.com/v6/latest/USD")
-    rates = data.get("rates", {})
-    out = {"date": data.get("time_last_update_utc", "")}
-    for c in codes:
-        v = float(rates.get(c) or 0)
-        if v <= 0:
-            raise ValueError(f"{c} 汇率为空")
-        out[c] = round(v, 4)
-    return out
+    last_err = None
+    for url in _GENERIC_RATES_SOURCES:
+        try:
+            data = _get_json(url)
+            out = {"date": _extract_date(data), "source": url}
+            for c in codes:
+                out[c] = round(_extract_rate(data, c), 4)
+            return out
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+    raise RuntimeError(f"无法获取 USD 汇率：{last_err}")
 
 
 def fetch_usd_cny() -> dict:
     """在线获取美元兑人民币汇率（1 USD = X CNY）。"""
     try:
         data = fetch_usd_rates("CNY")
-        return {"usd_cny": data["CNY"], "date": data.get("date", "")}
+        return {
+            "usd_cny": data["CNY"],
+            "date": data.get("date", ""),
+            "source": data.get("source", ""),
+        }
     except Exception as e:  # noqa: BLE001
         raise RuntimeError(f"无法获取美元/人民币汇率：{e}") from e
 
