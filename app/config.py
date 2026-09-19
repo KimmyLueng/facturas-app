@@ -129,9 +129,9 @@ PAY_CURRENCIES = [PAY_CURRENCY_BS, PAY_CURRENCY_USD, PAY_CURRENCY_CNY,
                   PAY_CURRENCY_USDT]
 
 # ------------------------------------------------ 店铺收入日报：营业额来源
-INCOME_SOURCE_CARD = "银行卡"        # 支付方式；科目归属由币种决定（见 income_account_key）
-INCOME_SOURCE_EPAY = "电子支付"      # 稳定币通常走电子支付
-INCOME_SOURCE_CASH = "现钞"
+INCOME_SOURCE_CARD = "银行卡"        # → 银行存款
+INCOME_SOURCE_EPAY = "电子支付"      # 扫码支付 → 其他货币资金
+INCOME_SOURCE_CASH = "现钞"          # → 库存现金（稳定币除外，见 income_account_key）
 INCOME_SOURCES = [INCOME_SOURCE_CARD, INCOME_SOURCE_EPAY, INCOME_SOURCE_CASH]
 
 # 收入币种（库中存代码，界面显示中文）
@@ -164,16 +164,36 @@ def income_currency_label(code) -> str:
     return INCOME_CURRENCY_LABELS.get(code, code or "")
 
 
-def income_account_key(source: str, currency: str) -> str:
-    """营业额币种 → 报表科目 key。
+# 稳定币（非法定货币）：不存在现钞形态，只能记银行存款 / 其他货币资金
+STABLECOIN_CURRENCIES = {INCOME_CUR_USDT}
 
-    按币种归属（不再按支付方式）：
-      USD / Bs / CNY → cash = 库存现金
-      USDT 稳定币     → bank = 银行存款
-    source 参数保留仅为兼容旧调用。
+
+def is_stablecoin(currency) -> bool:
+    """是否为稳定币（USDT 等）：不能记账为库存现金。"""
+    return normalize_currency(currency) in STABLECOIN_CURRENCIES
+
+
+def income_account_key(source: str, currency: str) -> str:
+    """营业额「支付方式 + 币种」→ 报表科目 key。
+
+    法定货币（USD / Bs / CNY）可记三种科目，由支付方式决定：
+      现钞     → cash   = 库存现金
+      银行卡   → bank   = 银行存款
+      电子支付 → crypto = 其他货币资金（扫码支付）
+    稳定币（USDT）不是法定货币、没有现钞形态，只能记银行存款 / 其他货币资金；
+    若来源是现钞则改记银行存款。
     """
-    cur = normalize_currency(currency)
-    return "bank" if cur == INCOME_CUR_USDT else "cash"
+    stable = is_stablecoin(currency)
+    if source == INCOME_SOURCE_CASH:
+        return "bank" if stable else "cash"
+    if source == INCOME_SOURCE_CARD:
+        return "bank"
+    return "crypto"
+
+
+def income_account_options(currency) -> list:
+    """该币种允许记账的科目 key 列表（用于校验）。"""
+    return ["bank", "crypto"] if is_stablecoin(currency) else ["cash", "bank", "crypto"]
 
 # 币种符号（用于金额显示）；VES/BS 等旧写法同样显示 Bs.
 CURRENCY_SYMBOLS = {

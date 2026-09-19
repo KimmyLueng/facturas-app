@@ -927,9 +927,10 @@ def delete_daily_income_row(row_id: int):
 
 
 def daily_income_by_account(date_from=None, date_to=None) -> dict:
-    """把收入日报明细按币种归集到报表科目 key（cash=库存现金 / bank=银行存款）。
+    """把收入日报明细按「支付方式 + 币种」归集到报表科目 key。
 
-    USD、Bs、CNY → cash；USDT 稳定币 → bank。
+    cash=库存现金 / bank=银行存款 / crypto=其他货币资金（扫码支付）；
+    稳定币（USDT）不记现金，现钞来源的稳定币改记银行存款。
     返回 {"cash": {币种: 金额}, ...}；金额为原始币种，换算由调用方处理。
     """
     out = {"cash": {}, "bank": {}, "crypto": {}}

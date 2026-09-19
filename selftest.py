@@ -216,32 +216,46 @@ def main():
                  "currency": config.INCOME_CUR_BS, "amount": 200},
                 {"store": "A", "source": config.INCOME_SOURCE_EPAY,
                  "currency": config.INCOME_CUR_USDT, "amount": 100},
+                {"store": "A", "source": config.INCOME_SOURCE_CARD,
+                 "currency": config.INCOME_CUR_USD, "amount": 50},
             ],
         })
         incomes = database.list_daily_income_full()
         check("收支日报保存并读取",
-              len(incomes) == 1 and len(incomes[0]["rows"]) == 3
+              len(incomes) == 1 and len(incomes[0]["rows"]) == 4
               and incomes[0]["rows"][0]["amount"] == 30,
               f"got={len(incomes[0]['rows']) if incomes else 0} 行")
         agg = database.daily_income_by_account()
-        check("日报按币种归集：USD/Bs→现金、USDT→银行存款",
+        check("日报按支付方式+币种归集科目",
               abs(agg["cash"].get("USD", 0) - 30) < 0.01
               and abs(agg["cash"].get("Bs", 0) - 200) < 0.01
-              and abs(agg["bank"].get("USDT", 0) - 100) < 0.01,
+              and abs(agg["bank"].get("USD", 0) - 50) < 0.01
+              and abs(agg["crypto"].get("USDT", 0) - 100) < 0.01,
               f"got={agg}")
 
-        # 收入币种 → 财务报表科目：USD/Bs/CNY→库存现金，USDT→银行存款
-        check("Bs 收入→库存现金(cash)",
+        # 收入「支付方式+币种」→ 财务报表科目
+        check("现钞 Bs → 库存现金(cash)",
               config.income_account_key("现钞", "Bs") == "cash",
               f"got={config.income_account_key('现钞', 'Bs')}")
-        check("USD 收入→库存现金(cash)",
-              config.income_account_key("银行卡", "USD") == "cash")
-        check("CNY 收入→库存现金(cash)",
+        check("现钞 USD → 库存现金(cash)",
+              config.income_account_key("现钞", "USD") == "cash")
+        check("现钞 CNY → 库存现金(cash)",
               config.income_account_key("现钞", "CNY") == "cash")
-        check("USDT 收入→银行存款(bank)",
-              config.income_account_key("电子支付", "USDT") == "bank")
-        check("旧写法 VES 收入→库存现金(cash)",
+        check("银行卡 USD → 银行存款(bank)",
+              config.income_account_key("银行卡", "USD") == "bank")
+        check("电子支付 CNY → 其他货币资金(crypto)",
+              config.income_account_key("电子支付", "CNY") == "crypto")
+        # 稳定币无现钞形态：现钞来源改记银行存款，电子支付记其他货币资金
+        check("USDT 只能记银行/其他货币资金(不可现金)",
+              config.income_account_options("USDT") == ["bank", "crypto"])
+        check("现钞 USDT → 银行存款(bank)",
+              config.income_account_key("现钞", "USDT") == "bank")
+        check("电子支付 USDT → 其他货币资金(crypto)",
+              config.income_account_key("电子支付", "USDT") == "crypto")
+        check("旧写法 VES 现钞 → 库存现金(cash)",
               config.income_account_key("现钞", "VES") == "cash")
+        check("法定货币三种科目均可记",
+              config.income_account_options("Bs") == ["cash", "bank", "crypto"])
 
         database.save_daily_expense({
             "date": "2026-08-25", "summary": "日常支出",

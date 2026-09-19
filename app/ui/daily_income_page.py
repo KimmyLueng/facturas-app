@@ -3,9 +3,11 @@
 - 一笔一行：同一天可录入不同币种、不同支付方式的多笔收入。
 - 「分店」下拉读取「设置 → 分店列表（Sucursales）」。
 - 「支付方式」下拉：银行卡 / 电子支付 / 现钞，各自限定可选币种。
-- 科目归属（财务报表，按币种）：
-    USD / Bs / CNY  → 库存现金
-    USDT 稳定币      → 银行存款
+- 科目归属（财务报表，按支付方式 + 币种）：
+    现钞     + 法定货币（USD/Bs/CNY）→ 库存现金
+    银行卡   + 法定货币              → 银行存款
+    电子支付（扫码支付）              → 其他货币资金
+    稳定币（USDT）无现钞形态，只能记银行存款 / 其他货币资金
 """
 import datetime
 import tkinter as tk
@@ -19,8 +21,9 @@ from app.utils import format_amount, parse_amount, date_iso
 
 # 科目归集展示：科目 key → 说明
 ACCOUNT_LABELS = (
-    ("cash", "USD/Bs/CNY → 库存现金"),
-    ("bank", "USDT 稳定币 → 银行存款"),
+    ("cash", "现钞（USD/Bs/CNY）→ 库存现金"),
+    ("bank", "银行卡 → 银行存款"),
+    ("crypto", "电子支付/扫码 → 其他货币资金"),
 )
 
 
