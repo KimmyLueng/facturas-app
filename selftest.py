@@ -16,6 +16,7 @@ from app import config  # noqa: E402
 from app.db import database  # noqa: E402
 from app.rates import convert_to_base  # noqa: E402
 from app.accounting import build_balance_sheet, build_income_statement  # noqa: E402
+from app.sync import manager as sync_manager  # noqa: E402
 
 PASS = 0
 FAIL = 0
@@ -148,6 +149,9 @@ def main():
     config.DB_PATH = tmp_db
     try:
         database.init_db()
+        # 全新安装（只有表结构）应判定为“无数据”，同步时建议从云端恢复
+        check("空账套 has_local_data=False",
+              sync_manager.has_local_data() is False)
         c1 = dict(compra)
         c1["direction"] = "compra"
         c1["store"] = "A店"
@@ -164,6 +168,7 @@ def main():
 
         docs = database.list_documents()
         check("已保存 2 张单据", len(docs) == 2)
+        check("有业务数据后 has_local_data=True", sync_manager.has_local_data())
 
         # 分店字段保存/读回 + 按分店筛选
         check("分店保存并读回",

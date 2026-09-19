@@ -10,6 +10,8 @@
     只有云端改  → 下载
     两边都改    → 冲突，需手动选择方向（强制上传 / 强制恢复）
     都没改      → 已是最新
+    首次同步 + 本机空账套 → 下载（重新安装的 App 直接「从云端恢复」即可）
+    首次同步 + 本机有数据 → 冲突，需手动选择方向
 """
 import base64
 import datetime
@@ -123,6 +125,37 @@ def _local_hash() -> str:
         return file_md5(config.DB_PATH)
     except OSError:
         return ""
+
+
+# 业务数据表（不含内置的科目表 chart_of_accounts）
+_DATA_TABLES = ("documents", "daily_income", "daily_income_rows",
+                "daily_expense", "daily_expense_items",
+                "supplier_settlements", "opening_balances",
+                "products", "stock_moves")
+
+
+def has_local_data() -> bool:
+    """本机库是否已有业务数据（全新安装 / 空账套返回 False）。
+
+    重新安装的 App 库里只有表结构，此时应从云端恢复而不是报“冲突”。
+    """
+    if not os.path.exists(config.DB_PATH):
+        return False
+    try:
+        conn = sqlite3.connect(config.DB_PATH)
+    except sqlite3.Error:
+        return True          # 打不开就当“有数据”，避免误判后覆盖本机
+    try:
+        for t in _DATA_TABLES:
+            try:
+                n = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+            except sqlite3.Error:
+                continue     # 旧库可能没有该表
+            if n:
+                return True
+    finally:
+        conn.close()
+    return False
 
 
 def make_snapshot() -> str:
@@ -239,6 +272,13 @@ def plan() -> dict:
         return {**base, "action": "upload",
                 "message": "云端尚无备份，建议上传本地数据"}
     if not base_local and not base_remote:
+        # 全新安装（本机空账套）+ 云端已有备份 → 直接建议恢复，不算冲突
+        if not has_local_data():
+            return {**base, "action": "download",
+                    "message": "本机是空账套（未录入数据），云端已有备份"
+                               f"（{info.get('updated_at', '未知时间')}，"
+                               f"设备 {info.get('device', '未知')}），"
+                               "建议点击「从云端恢复」"}
         return {**base, "action": "conflict",
                 "message": "云端已有数据且本机未同步过，请手动选择「上传」或「从云端恢复」"}
     if base["local_changed"] and base["remote_changed"]:

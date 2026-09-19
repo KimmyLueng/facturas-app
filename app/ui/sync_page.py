@@ -116,6 +116,8 @@ class SyncPage:
                     "恢复时会自动备份本机数据库到 data/backups/；\n"
                     "· 两台电脑不要同时录入同一天数据，先同步再录入，避免冲突；"
                     "出现冲突时请手动选择「上传」或「从云端恢复」；\n"
+                    "· 重新安装的 App（本机无数据）首次同步会提示「从云端恢复」，"
+                    "直接点该按钮即可，无需勾选强制覆盖；\n"
                     f"· 本机数据库：{config.DB_PATH}")
         note.config(state="disabled")
         note.pack(anchor="w", fill="x", padx=14, pady=(0, 10))
