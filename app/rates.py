@@ -18,7 +18,6 @@ CURRENCY_NAMES = {
     "USD": "美元 USD",
     "CNY": "人民币 CNY",
     "Bs": "玻利瓦尔 Bs（委内瑞拉）",
-    "BS": "玻利瓦尔 Bs（委内瑞拉）",
     "VES": "玻利瓦尔 Bs（委内瑞拉，VES 为 ISO 代码）",
     "MXN": "墨西哥比索 MXN",
     "ARS": "阿根廷比索 ARS",
