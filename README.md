@@ -1,6 +1,6 @@
 # Gestion de Facturas · 西班牙语单据财务管理系统（Windows / macOS / Android）
 
-一个 Windows 桌面应用：**扫描导入西班牙语的进货单（Factura de compra）和出货单（Factura de venta）**，
+**扫描导入西班牙语的进货单（Factura de compra）和出货单（Factura de venta）**，
 自动识别关键字段并生成**资产负债表（Balance de Situación）**和**利润表（Cuenta de Resultados）**，可导出 PDF。
 
 ## 功能
@@ -40,71 +40,6 @@
 - 资产负债表：Caja/Bancos、Existencias、HP IVA、Capital、Resultado 等科目自动平衡。
 - 利润表：收入 − 销售成本 = 净利润，另附 IVA 净额（负=应交，正=可抵/退）。
 
-## 安装与运行
-
-```powershell
-# 1. 安装依赖（Python 3.9+，推荐 3.12）
-pip install -r requirements.txt
-
-# 2. 运行
-python main.py
-```
-
-> 首次执行 OCR 时，PaddleOCR 会自动下载西班牙语模型（约几十 MB），请保持网络畅通。
-
-## 打包为独立 exe
-
-```powershell
-# 1. 安装打包工具（仅一次）
-pip install pyinstaller
-
-# 2. 运行一键打包脚本（自动收集 PaddleOCR 全部资源，产物在 dist\GestionFacturas\GestionFacturas.exe）
-.\build.ps1
-
-# 或手动执行等价命令：
-# pyinstaller -w -n GestionFacturas --collect-all paddleocr --collect-all paddle main.py
-```
-
-> 打包为 onedir 模式（exe + 同目录 `_internal` 依赖）。Paddle 库较大，首次打包约需 5-10 分钟。
-> 数据目录 `data\`（数据库与设置）在 exe 同级自动生成；启动失败会写 `error.log` 到 exe 同级。
-
-## 各平台安装包（Windows / macOS / Android）
-
-| 平台 | 安装包 | 构建命令 | 说明 |
-|---|---|---|---|
-| Windows | `GestionFacturas-Setup.exe` 或 `GestionFacturas.msi` | `.\build_all.ps1` / `.\build_all.ps1 -Msi` | EXE 包需 Inno Setup 6；MSI 包需 WiX Toolset v3，支持静默部署 |
-| macOS | `GestionFacturas.dmg`（内含 .app） | `./build_all.sh macos` | 必须在 Mac 上构建 |
-| Android | `app-debug.apk` | `./build_all.sh android` | 需 Android Studio/Gradle，不含 OCR |
-| 浏览器 | 免安装 | `python -m app.web.server` | 手机浏览器可用，依赖 `requirements-web.txt` |
-
-详见 [docs/PLATFORMS.md](docs/PLATFORMS.md)。
-
-## 项目结构
-
-```
-facturas_app/
-├── main.py                # 入口（图形界面）
-├── cli.py                 # 无头工具入口（导入/报表/期初余额等，可选）
-├── selftest.py            # 自检脚本（无 OCR 依赖）
-├── build.ps1              # 一键打包脚本（PyInstaller onedir）
-├── requirements.txt
-├── app/
-│   ├── config.py          # 配置与会计科目（打包后数据目录自动定位到 exe 同级）
-│   ├── utils.py           # 金额/日期解析
-│   ├── rates.py           # 币种换算 + 委内瑞拉官方汇率在线获取
-│   ├── settings.py        # 设置持久化
-│   ├── ocr/               # OCR 引擎（PaddleOCR 西语）+ 单据解析器（含币种识别）
-│   ├── db/                # SQLite 数据模型（含科目表 chart_of_accounts / 期初余额 opening_balances）
-│   ├── accounting/        # 报表引擎 + PDF 导出
-│   ├── sync/              # WebDAV 数据同步（webdav 客户端 + 同步管理器）
-│   ├── web/               # Flask Web 界面（浏览器 / Android 内嵌）
-│   └── ui/                # tkinter 界面（扫描/单据/报表/收支/支出/供应商结算/期初余额/设置/同步）
-├── platforms/             # 各平台打包工程（windows / macos / android）
-├── data/                  # SQLite 数据库与设置（自动生成）；chart_of_accounts.json 首次启动自动载入
-└── dist/                  # 打包产物（exe / dmg / 安装包）
-```
-
-## 提示
 
 - 扫描件请尽量清晰、端正、光线均匀，识别率更高。
 - OCR 识别字段可能含误差，入库前请核对表单（金额、日期、NIF 等）。
