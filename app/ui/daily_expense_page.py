@@ -84,7 +84,7 @@ class DailyExpensePage:
             row=1, column=3, sticky="w", padx=8)
 
         ttk.Label(form, text="币种").grid(row=1, column=4, sticky="w", padx=(14, 0))
-        self.vars["currency"] = tk.StringVar(value=config.PAY_CURRENCY_VES)
+        self.vars["currency"] = tk.StringVar(value=config.PAY_CURRENCY_BS)
         ttk.Combobox(form, textvariable=self.vars["currency"], state="readonly",
                      width=16, values=config.PAY_CURRENCIES).grid(
             row=1, column=5, sticky="w", padx=8)
@@ -136,7 +136,7 @@ class DailyExpensePage:
         self.vars["category"].set(
             self._key_to_label.get(rec["category"], rec["category"] or ""))
         self.vars["method"].set(rec["method"] or config.PAY_METHOD_CARD)
-        self.vars["currency"].set(rec["currency"] or config.PAY_CURRENCY_VES)
+        self.vars["currency"].set(rec["currency"] or config.PAY_CURRENCY_BS)
         self.vars["amount"].set(f"{float(rec.get('amount') or 0):.2f}")
         self.vars["notes"].set(rec["notes"] or "")
 
@@ -173,7 +173,7 @@ class DailyExpensePage:
         self.vars["summary"].set("")
         self.vars["category"].set(self._key_to_label[config.EXPENSE_CATEGORIES[0][0]])
         self.vars["method"].set(config.PAY_METHOD_CARD)
-        self.vars["currency"].set(config.PAY_CURRENCY_VES)
+        self.vars["currency"].set(config.PAY_CURRENCY_BS)
         self.vars["amount"].set("0")
         self.vars["notes"].set("")
         self.tree.selection_remove(self.tree.selection())

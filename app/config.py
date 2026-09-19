@@ -78,12 +78,40 @@ DEFAULT_CAPITAL = 0.0
 # 币种
 CURRENCY_EUR = "EUR"
 CURRENCY_USD = "USD"
-CURRENCY_VES = "VES"
+CURRENCY_BS = "Bs"              # 委内瑞拉玻利瓦尔：VES 是 ISO 代码、Bs 是货币符号，同一种货币
+CURRENCY_VES = CURRENCY_BS      # 兼容旧代码（历史库里存的 VES）
 CURRENCY_CNY = "CNY"            # 人民币
 CURRENCY_USDT = "USDT"          # 泰达币稳定币（与美元 1:1 锚定）
 DEFAULT_BASE_CURRENCY = "USD"   # 本位币（记账币种），可在设置中修改
-CURRENCY_CODES = [CURRENCY_EUR, CURRENCY_USD, CURRENCY_VES, CURRENCY_CNY,
+CURRENCY_CODES = [CURRENCY_EUR, CURRENCY_USD, CURRENCY_BS, CURRENCY_CNY,
                   CURRENCY_USDT, "MXN", "ARS", "COP"]
+
+# 玻利瓦尔的历史写法 / 别名 → 统一为 Bs（VES、VED、VEF、Bs.、Bs.S、BOLIVAR…）
+_CURRENCY_ALIASES = {
+    "VES": CURRENCY_BS, "VED": CURRENCY_BS, "VEF": CURRENCY_BS,
+    "BS": CURRENCY_BS, "BSS": CURRENCY_BS, "BSF": CURRENCY_BS,
+    "BS.S": CURRENCY_BS, "BSS.S": CURRENCY_BS,
+    "BOLIVAR": CURRENCY_BS, "BOLÍVAR": CURRENCY_BS, "BOLIVARES": CURRENCY_BS,
+    "委内瑞拉玻利瓦尔": CURRENCY_BS, "玻利瓦尔": CURRENCY_BS,
+}
+
+
+def normalize_currency(code) -> str:
+    """把币种的各种写法归一到标准代码。
+
+    主要用途：VES 与 Bs 是同一种货币，统一按 Bs 存储与显示。
+    旧库里的 VES / VED / Bs. / 委内瑞拉玻利瓦尔 都会被读成 Bs。
+    """
+    c = str(code or "").strip()
+    if not c:
+        return ""
+    up = c.upper()
+    if up in _CURRENCY_ALIASES:
+        return _CURRENCY_ALIASES[up]
+    for std in CURRENCY_CODES:
+        if up == std.upper():
+            return std
+    return c
 
 # 收/付款方式（下拉选取）
 PAY_METHOD_CARD = "银行卡"
@@ -91,33 +119,38 @@ PAY_METHOD_EPAY = "电子支付"
 PAY_METHOD_CASH = "现金"
 PAY_METHODS = [PAY_METHOD_CARD, PAY_METHOD_EPAY, PAY_METHOD_CASH]
 
-# 日常交易币种
-PAY_CURRENCY_VES = "委内瑞拉玻利瓦尔"
+# 日常交易币种（界面与库中统一用代码显示；Bs = 委内瑞拉玻利瓦尔）
+PAY_CURRENCY_BS = "Bs"
+PAY_CURRENCY_VES = PAY_CURRENCY_BS   # 兼容旧写法
 PAY_CURRENCY_USD = "美元"
 PAY_CURRENCY_CNY = "人民币"
 PAY_CURRENCY_USDT = "USDT 泰达币"
-PAY_CURRENCIES = [PAY_CURRENCY_VES, PAY_CURRENCY_USD, PAY_CURRENCY_CNY,
+PAY_CURRENCIES = [PAY_CURRENCY_BS, PAY_CURRENCY_USD, PAY_CURRENCY_CNY,
                   PAY_CURRENCY_USDT]
 
 # ------------------------------------------------ 店铺收入日报：营业额来源
-INCOME_SOURCE_CARD = "银行卡"        # → 银行存款
-INCOME_SOURCE_EPAY = "电子支付"      # → 其他货币资金（稳定币）/ 银行存款
-INCOME_SOURCE_CASH = "现钞"          # → 库存现金
+INCOME_SOURCE_CARD = "银行卡"        # 支付方式；科目归属由币种决定（见 income_account_key）
+INCOME_SOURCE_EPAY = "电子支付"      # 稳定币通常走电子支付
+INCOME_SOURCE_CASH = "现钞"
 INCOME_SOURCES = [INCOME_SOURCE_CARD, INCOME_SOURCE_EPAY, INCOME_SOURCE_CASH]
 
 # 收入币种（库中存代码，界面显示中文）
-INCOME_CUR_VES = "VES"
+INCOME_CUR_BS = "Bs"
+INCOME_CUR_VES = INCOME_CUR_BS     # 兼容旧写法
 INCOME_CUR_USD = "USD"
+INCOME_CUR_CNY = "CNY"
 INCOME_CUR_USDT = "USDT"
 INCOME_CURRENCY_LABELS = {
-    INCOME_CUR_VES: "委内瑞拉官方货币 (VES)",
+    INCOME_CUR_BS: "委内瑞拉玻利瓦尔 (Bs)",
     INCOME_CUR_USD: "美元 (USD)",
+    INCOME_CUR_CNY: "人民币 (CNY)",
     INCOME_CUR_USDT: "数字加密稳定币 (USDT)",
 }
 # 各来源可选币种
-INCOME_CARD_CURRENCIES = [INCOME_CUR_VES, INCOME_CUR_USD]
-INCOME_EPAY_CURRENCIES = [INCOME_CUR_USDT, INCOME_CUR_USD, INCOME_CUR_VES]
-INCOME_CASH_CURRENCIES = [INCOME_CUR_VES, INCOME_CUR_USD]
+INCOME_CARD_CURRENCIES = [INCOME_CUR_BS, INCOME_CUR_USD, INCOME_CUR_CNY]
+INCOME_EPAY_CURRENCIES = [INCOME_CUR_USDT, INCOME_CUR_USD, INCOME_CUR_BS,
+                          INCOME_CUR_CNY]
+INCOME_CASH_CURRENCIES = [INCOME_CUR_BS, INCOME_CUR_USD, INCOME_CUR_CNY]
 
 # 支付方式（下拉）→ 可选币种
 INCOME_SOURCE_CURRENCIES = {
@@ -132,22 +165,23 @@ def income_currency_label(code) -> str:
 
 
 def income_account_key(source: str, currency: str) -> str:
-    """营业额来源 + 币种 → 报表科目 key。
+    """营业额币种 → 报表科目 key。
 
-    cash=库存现金(现钞)、bank=银行存款(银行卡/电子支付法币)、
-    crypto=其他货币资金(电子支付稳定币)。
+    按币种归属（不再按支付方式）：
+      USD / Bs / CNY → cash = 库存现金
+      USDT 稳定币     → bank = 银行存款
+    source 参数保留仅为兼容旧调用。
     """
-    if source == INCOME_SOURCE_CASH:
-        return "cash"
-    if source == INCOME_SOURCE_CARD:
-        return "bank"
-    return "crypto" if currency == INCOME_CUR_USDT else "bank"
+    cur = normalize_currency(currency)
+    return "bank" if cur == INCOME_CUR_USDT else "cash"
 
-# 币种符号（用于金额显示）
+# 币种符号（用于金额显示）；VES/BS 等旧写法同样显示 Bs.
 CURRENCY_SYMBOLS = {
     CURRENCY_EUR: "€",
     CURRENCY_USD: "$",
-    CURRENCY_VES: "Bs.",
+    "Bs": "Bs.",
+    "BS": "Bs.",
+    "VES": "Bs.",
     CURRENCY_CNY: "¥",
     CURRENCY_USDT: "₮",
 }
@@ -200,7 +234,7 @@ ACCOUNT_NAMES = {
 # 业务 → 科目的解析规则：优先用候选编码（在科目表中存在者），否则按名称关键字查找。
 # 科目表为空（旧库）时，报表回退到上面的西班牙 PGC 常量科目。
 ACCOUNTING_MAP = {
-    # 收款方式 → 货币资金科目（现钞 / 银行卡 / 加密稳定币）
+    # 币种 → 货币资金科目（USD/Bs/CNY → 库存现金；USDT → 银行存款）
     "cash": (["1001"], ["库存现金"]),
     "bank": (["1002"], ["银行存款"]),
     "crypto": (["1012", "1090"], ["其他货币资金", "数字货币"]),

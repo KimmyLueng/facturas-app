@@ -39,7 +39,7 @@ def parse_amount(text: str) -> float:
 def format_amount(value: float, decimals: int = 2, currency: str = None) -> str:
     """格式化为西班牙语金额："1.234,56 $"。
 
-    currency 指定币种时显示对应符号（CNY→¥、EUR→€、VES→Bs.），默认 $。
+    currency 指定币种时显示对应符号（CNY→¥、EUR→€、Bs/VES→Bs.），默认 $。
     """
     if value is None:
         value = 0.0

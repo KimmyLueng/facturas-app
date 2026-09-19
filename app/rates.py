@@ -12,13 +12,14 @@ import urllib.request
 
 from app import config
 
-# 常用币种代码与名称（含委内瑞拉玻利瓦尔）
+# 常用币种代码与名称（VES 与 Bs 是同一种货币，统一显示为 Bs）
 CURRENCY_NAMES = {
     "EUR": "欧元 EUR",
     "USD": "美元 USD",
     "CNY": "人民币 CNY",
-    "VES": "玻利瓦尔 VES（委内瑞拉）",
-    "BS": "玻利瓦尔 BS（旧代码）",
+    "Bs": "玻利瓦尔 Bs（委内瑞拉）",
+    "BS": "玻利瓦尔 Bs（委内瑞拉）",
+    "VES": "玻利瓦尔 Bs（委内瑞拉，VES 为 ISO 代码）",
     "MXN": "墨西哥比索 MXN",
     "ARS": "阿根廷比索 ARS",
     "COP": "哥伦比亚比索 COP",
@@ -36,7 +37,7 @@ def _get_json(url: str, timeout: int = 12) -> dict:
 
 
 def fetch_usd_ves() -> dict:
-    """在线获取委内瑞拉官方汇率（BCV）。
+    """在线获取委内瑞拉官方汇率（BCV），即 1 USD = X Bs。
 
     返回 {"usd_ves": float, "date": str, "source": str}；
     全部源失败时抛 RuntimeError。
@@ -108,14 +109,15 @@ def convert_to_base(amount: float, currency: str, settings: dict,
     返回 (换算后金额, 是否成功换算)。
     - 币种 = 本位币             → 原值
     - USD：金额 × usd_to_base
-    - VES：金额 ÷ 汇率 × usd_to_base（汇率 = 单据自带或官方 usd_ves）
+    - Bs（含旧写法 VES）：金额 ÷ 汇率 × usd_to_base（汇率 = 单据自带或官方 usd_ves）
     - CNY：金额 ÷ 汇率 × usd_to_base（汇率 = 单据自带或设置中的 usd_cny）
     - 其他/缺汇率              → 原值返回，成功=False（报表提示未换算）
     """
     if not amount:
         return 0.0, True
-    base = (settings.get("base_currency") or config.DEFAULT_BASE_CURRENCY).upper()
-    cur = (currency or base).upper()
+    base = config.normalize_currency(
+        settings.get("base_currency") or config.DEFAULT_BASE_CURRENCY).upper()
+    cur = config.normalize_currency(currency or base).upper()
     if cur == base:
         return amount, True
 
@@ -127,7 +129,7 @@ def convert_to_base(amount: float, currency: str, settings: dict,
         if usd_to_base <= 0:
             return amount, False
         return amount * usd_to_base, True
-    if cur in ("VES", "BS"):
+    if cur == config.CURRENCY_BS.upper():      # Bs（VES/BS 等旧写法已在上方归一）
         rate = doc_rate or usd_ves
         if rate <= 0 or usd_to_base <= 0:
             return amount, False

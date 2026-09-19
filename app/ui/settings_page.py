@@ -64,7 +64,7 @@ class SettingsPage:
 
         r2 = ttk.Frame(fx)
         r2.pack(fill="x", padx=10, pady=4)
-        ttk.Label(r2, text="委内瑞拉官方汇率（1 USD = X VES，BCV）：").pack(side="left")
+        ttk.Label(r2, text="委内瑞拉官方汇率（1 USD = X Bs，BCV）：").pack(side="left")
         self.usd_ves_var = tk.StringVar(
             value=str(s.get("usd_ves_official", 0.0) or 0.0))
         ttk.Entry(r2, textvariable=self.usd_ves_var, width=10).pack(side="left", padx=8)
@@ -117,8 +117,8 @@ class SettingsPage:
                        foreground="#333", relief="flat", bg=self.frame.cget("bg"))
         note.insert("1.0",
                     "说明：\n"
-                    "· 扫描单据时自动识别币种（EUR/USD/VES 玻利瓦尔/CNY 人民币等）与单据汇率；\n"
-                    "· 报表按本位币统一换算：VES → USD（官方汇率）→ 本位币；"
+                    "· 扫描单据时自动识别币种（EUR/USD/Bs 玻利瓦尔/CNY 人民币等）与单据汇率；\n"
+                    "· 报表按本位币统一换算：Bs → USD（官方汇率）→ 本位币；"
                     "CNY → USD（美元兑人民币汇率）→ 本位币；\n"
                     "· 官方汇率来源为委内瑞拉央行（BCV，经 dolarapi 接口），可手动填写兜底。")
         note.config(state="disabled")
@@ -155,7 +155,7 @@ class SettingsPage:
         messagebox.showinfo(
             "已保存",
             f"期初资本 {format_amount(cap)}；本位币 {base_cur}；"
-            f"1 USD = {usd_to_base} {base_cur}；官方汇率 1 USD = {usd_ves} VES；"
+            f"1 USD = {usd_to_base} {base_cur}；官方汇率 1 USD = {usd_ves} Bs；"
             f"1 USD = {usd_cny} CNY；"
             f"分店 {len(settings['stores'])} 个。",
             parent=self.frame)
@@ -193,7 +193,7 @@ class SettingsPage:
             if base == "CNY":      # 本位币为人民币时，1 USD = X CNY 即 usd_to_base
                 self.usd_to_base_var.set(str(cny["usd_cny"]))
         self.rate_status.set(
-            f"✔ 已获取：1 USD = {res['usd_ves']} VES"
+            f"✔ 已获取：1 USD = {res['usd_ves']} Bs"
             + (f"，1 USD = {eur['usd_eur']} EUR" if eur else "")
             + (f"，1 USD = {cny['usd_cny']} CNY" if cny else "")
             + "。请点击“保存全部设置”生效。")

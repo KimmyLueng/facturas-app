@@ -105,11 +105,11 @@ class ScanPage:
         ttk.Label(form, text="Moneda / 币种").grid(row=r, column=0, sticky="w", pady=3)
         self.vars["currency"] = tk.StringVar()
         cb = ttk.Combobox(form, textvariable=self.vars["currency"], width=14,
-                          values=["", "USD", "VES", "Bs", "CNY", "USDT"])
+                          values=["", "USD", "Bs", "CNY", "USDT"])
         cb.grid(row=r, column=1, sticky="we", padx=8, pady=3)
 
         r2 = r + 1
-        ttk.Label(form, text="Tipo de Cambio BCV\n汇率（1 USD = X VES）").grid(
+        ttk.Label(form, text="Tipo de Cambio BCV\n汇率（1 USD = X Bs）").grid(
             row=r2, column=0, sticky="w", pady=3)
         self.vars["exchange_rate"] = tk.StringVar()
         e2 = ttk.Entry(form, textvariable=self.vars["exchange_rate"], width=14)

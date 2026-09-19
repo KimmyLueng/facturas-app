@@ -348,7 +348,7 @@ def settings_fetch_rates():
         except Exception:  # noqa: BLE001
             pass
         settings_mod.save_settings(s)
-        return _go("settings", f"已获取：1 USD = {ves['usd_ves']} VES")
+        return _go("settings", f"已获取：1 USD = {ves['usd_ves']} Bs")
     except Exception as e:  # noqa: BLE001
         return _go("settings", str(e), False)
 

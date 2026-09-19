@@ -11,7 +11,7 @@ DEFAULTS = {
     # ---- 币种与汇率 ----
     "base_currency": config.DEFAULT_BASE_CURRENCY,   # 本位币（记账币种）
     "usd_to_base": 1.0,          # 1 USD 兑本位币（本位币为 USD 时保持 1；EUR 时可在线更新）
-    "usd_ves_official": 0.0,     # 委内瑞拉官方汇率：1 USD = X VES（BCV）
+    "usd_ves_official": 0.0,     # 委内瑞拉官方汇率：1 USD = X Bs（BCV）
     "usd_ves_date": "",          # 官方汇率更新时间
     "usd_cny": 0.0,              # 美元兑人民币：1 USD = X CNY（可在线更新）
     "stores": list(config.DEFAULT_STORES),   # 分店列表

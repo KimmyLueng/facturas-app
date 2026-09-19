@@ -113,7 +113,7 @@ class SupplierSettlementPage:
             row=3, column=1, sticky="w", padx=8, pady=3)
 
         ttk.Label(form, text="币种").grid(row=3, column=2, sticky="w", pady=3, padx=(16, 0))
-        self.vars["pay_currency"] = tk.StringVar(value=config.PAY_CURRENCY_VES)
+        self.vars["pay_currency"] = tk.StringVar(value=config.PAY_CURRENCY_BS)
         ttk.Combobox(form, textvariable=self.vars["pay_currency"],
                      values=config.PAY_CURRENCIES, width=14, state="readonly").grid(
             row=3, column=3, sticky="w", padx=8, pady=3)
@@ -214,7 +214,7 @@ class SupplierSettlementPage:
         self.vars["doc_number"].set(rec["doc_number"] or "")
         self.vars["supply_amount_ves"].set(self._fmt_num(rec["supply_amount_ves"]))
         self.vars["pay_method"].set(rec["pay_method"] or config.PAY_METHOD_CARD)
-        self.vars["pay_currency"].set(rec["pay_currency"] or config.PAY_CURRENCY_VES)
+        self.vars["pay_currency"].set(rec["pay_currency"] or config.PAY_CURRENCY_BS)
         self.vars["notes"].set(rec["notes"] or "")
         # 支付金额回填：根据已保存的列反推（只有一列非零）
         total = (rec["pay_bank"] + rec["pay_cash_ves"]
@@ -261,7 +261,7 @@ class SupplierSettlementPage:
         self.vars["supply_amount_ves"].set("0")
         self.vars["pay_amount"].set("0")
         self.vars["pay_method"].set(config.PAY_METHOD_CARD)
-        self.vars["pay_currency"].set(config.PAY_CURRENCY_VES)
+        self.vars["pay_currency"].set(config.PAY_CURRENCY_BS)
         self.vars["store"].set(self._store_default())
         self.tree.selection_remove(self.tree.selection())
         self.status.config(text="", foreground="gray")

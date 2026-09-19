@@ -82,10 +82,11 @@ def main():
     check("EUR (€)", detect_currency(["TOTAL 45,74 €"]) == "EUR")
     check("USD ($)", detect_currency(["TOTAL $ 45,74"]) == "USD")
     check("USD (USD)", detect_currency(["Total en USD 100,00"]) == "USD")
-    check("VES (Bs.)", detect_currency(["TOTAL Bs. 1.234,56"]) == "VES")
-    check("VES (Bs.S)", detect_currency(["TOTAL Bs.S 1.234,56"]) == "VES")
-    check("VES (BOLIVARES)", detect_currency(["Total en Bolivares 1.234,56"]) == "VES")
-    check("VES (VES)", detect_currency(["TOTAL 1.234,56 VES"]) == "VES")
+    # VES 与 Bs 是同一种货币，统一识别/存储为 Bs
+    check("Bs (Bs.)", detect_currency(["TOTAL Bs. 1.234,56"]) == "Bs")
+    check("Bs (Bs.S)", detect_currency(["TOTAL Bs.S 1.234,56"]) == "Bs")
+    check("Bs (BOLIVARES)", detect_currency(["Total en Bolivares 1.234,56"]) == "Bs")
+    check("Bs (VES 代码)", detect_currency(["TOTAL 1.234,56 VES"]) == "Bs")
     check("汇率 Tasa: 36,50",
           detect_exchange_rate(["Tasa de cambio: 36,50"]) == 36.5)
     check("汇率 1 USD = 785,07 Bs",
@@ -101,11 +102,13 @@ def main():
     check("EUR 不换算", v == 100 and ok)
     v, ok = convert_to_base(100, "USD", st_eur)
     check("USD→EUR", abs(v - 92.0) < 0.01 and ok, f"got={v}")
+    v, ok = convert_to_base(78507, "Bs", st_eur)
+    check("Bs→EUR(官方汇率)", abs(v - 92.0) < 0.01 and ok, f"got={v}")
     v, ok = convert_to_base(78507, "VES", st_eur)
-    check("VES→EUR(官方汇率)", abs(v - 92.0) < 0.01 and ok, f"got={v}")
+    check("旧写法 VES 仍按 Bs 换算", abs(v - 92.0) < 0.01 and ok, f"got={v}")
     v, ok = convert_to_base(100, "USD", {"base_currency": "EUR", "usd_to_base": 0})
     check("缺汇率标记未换算", not ok)
-    v, ok = convert_to_base(36.5, "VES",
+    v, ok = convert_to_base(36.5, "Bs",
                             {"base_currency": "EUR", "usd_to_base": 0.92,
                              "usd_ves_official": 0}, doc_rate=36.5)
     check("单据自带汇率优先", abs(v - 0.92) < 0.01 and ok, f"got={v}")
@@ -206,20 +209,46 @@ def main():
         print("== 6b. 店铺收支/支出日报与供应商结算 ==")
         database.save_daily_income({
             "date": "2026-08-25",
-            "store_a_card": 100, "store_a_ves": 200, "store_a_usd": 30,
-            "store_b_card": 50, "store_b_ves": 150, "store_b_usd": 20,
-            "expense_card": 20, "expense_ves": 100, "expense_usd": 10,
-            "bank_balance": 500, "balance_ves": 1000, "balance_usd": 200,
+            "rows": [
+                {"store": "A", "source": config.INCOME_SOURCE_CASH,
+                 "currency": config.INCOME_CUR_USD, "amount": 30},
+                {"store": "A", "source": config.INCOME_SOURCE_CASH,
+                 "currency": config.INCOME_CUR_BS, "amount": 200},
+                {"store": "A", "source": config.INCOME_SOURCE_EPAY,
+                 "currency": config.INCOME_CUR_USDT, "amount": 100},
+            ],
         })
-        incomes = database.list_daily_income()
-        check("收支日报保存并读取", len(incomes) == 1 and incomes[0]["store_a_usd"] == 30)
+        incomes = database.list_daily_income_full()
+        check("收支日报保存并读取",
+              len(incomes) == 1 and len(incomes[0]["rows"]) == 3
+              and incomes[0]["rows"][0]["amount"] == 30,
+              f"got={len(incomes[0]['rows']) if incomes else 0} 行")
+        agg = database.daily_income_by_account()
+        check("日报按币种归集：USD/Bs→现金、USDT→银行存款",
+              abs(agg["cash"].get("USD", 0) - 30) < 0.01
+              and abs(agg["cash"].get("Bs", 0) - 200) < 0.01
+              and abs(agg["bank"].get("USDT", 0) - 100) < 0.01,
+              f"got={agg}")
+
+        # 收入币种 → 财务报表科目：USD/Bs/CNY→库存现金，USDT→银行存款
+        check("Bs 收入→库存现金(cash)",
+              config.income_account_key("现钞", "Bs") == "cash",
+              f"got={config.income_account_key('现钞', 'Bs')}")
+        check("USD 收入→库存现金(cash)",
+              config.income_account_key("银行卡", "USD") == "cash")
+        check("CNY 收入→库存现金(cash)",
+              config.income_account_key("现钞", "CNY") == "cash")
+        check("USDT 收入→银行存款(bank)",
+              config.income_account_key("电子支付", "USDT") == "bank")
+        check("旧写法 VES 收入→库存现金(cash)",
+              config.income_account_key("现钞", "VES") == "cash")
 
         database.save_daily_expense({
             "date": "2026-08-25", "summary": "日常支出",
             "salary": 100, "overtime": 20, "meal": 30, "tax": 10,
             "utilities": 25, "rent": 200, "municipal": 15,
             "pay_method": config.PAY_METHOD_CARD,
-            "pay_currency": config.PAY_CURRENCY_VES,
+            "pay_currency": config.PAY_CURRENCY_BS,
         })
         expenses = database.list_daily_expense()
         check("支出日报自动归集到刷卡",
@@ -242,7 +271,7 @@ def main():
             "summary": "Pago", "doc_number": "P-001",
             "supply_amount_ves": 1000,
             "pay_method": config.PAY_METHOD_CASH,
-            "pay_currency": config.PAY_CURRENCY_VES,
+            "pay_currency": config.PAY_CURRENCY_BS,
             "pay_amount": 500,
             "store": "B店",
         })

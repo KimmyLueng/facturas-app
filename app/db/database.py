@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS documents (
     iva_rate REAL DEFAULT 0,
     iva_amount REAL DEFAULT 0,
     total REAL DEFAULT 0,
-    currency TEXT DEFAULT '',            -- 单据币种 EUR/USD/VES
+    currency TEXT DEFAULT '',            -- 单据币种 EUR/USD/Bs
     exchange_rate REAL DEFAULT 0,        -- 单据自带汇率（1 USD = X 本国货币）
     cost_total REAL DEFAULT 0,           -- 结转的销售成本
     raw_text TEXT DEFAULT '',
@@ -82,16 +82,16 @@ CREATE TABLE IF NOT EXISTS daily_income (
     balance_ves REAL DEFAULT 0,
     balance_usd REAL DEFAULT 0,
     -- 营业额来源拆分：银行卡 / 电子支付 / 现钞（各带币种）
-    store_a_card_cur TEXT DEFAULT 'VES',
+    store_a_card_cur TEXT DEFAULT 'Bs',
     store_a_epay REAL DEFAULT 0,
     store_a_epay_cur TEXT DEFAULT 'USDT',
     store_a_cash REAL DEFAULT 0,
-    store_a_cash_cur TEXT DEFAULT 'VES',
-    store_b_card_cur TEXT DEFAULT 'VES',
+    store_a_cash_cur TEXT DEFAULT 'Bs',
+    store_b_card_cur TEXT DEFAULT 'Bs',
     store_b_epay REAL DEFAULT 0,
     store_b_epay_cur TEXT DEFAULT 'USDT',
     store_b_cash REAL DEFAULT 0,
-    store_b_cash_cur TEXT DEFAULT 'VES',
+    store_b_cash_cur TEXT DEFAULT 'Bs',
     notes TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now','localtime'))
 );
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS daily_income_rows (
     income_id INTEGER NOT NULL,
     store TEXT DEFAULT '',               -- 分店名（取自设置的分店列表）
     source TEXT DEFAULT '',              -- 银行卡 / 电子支付 / 现钞
-    currency TEXT DEFAULT 'VES',         -- VES / USD / USDT
+    currency TEXT DEFAULT 'Bs',          -- Bs / USD / CNY / USDT（VES 与 Bs 同币，统一 Bs）
     amount REAL DEFAULT 0,
     FOREIGN KEY (income_id) REFERENCES daily_income(id) ON DELETE CASCADE
 );
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS daily_expense (
     rent REAL DEFAULT 0,
     municipal REAL DEFAULT 0,
     pay_method TEXT DEFAULT '',          -- 银行卡 / 现金
-    pay_currency TEXT DEFAULT '',        -- 委内瑞拉玻利瓦尔 / 美元 / 人民币
+    pay_currency TEXT DEFAULT '',        -- Bs / 美元 / 人民币
     total_card REAL DEFAULT 0,
     total_ves REAL DEFAULT 0,
     total_usd REAL DEFAULT 0,
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS daily_expense_items (
     summary TEXT DEFAULT '',             -- 摘要
     category TEXT DEFAULT '',            -- 费用类别 key（salary/overtime/...）
     method TEXT DEFAULT '',              -- 银行卡 / 电子支付 / 现金
-    currency TEXT DEFAULT '',            -- 委内瑞拉玻利瓦尔 / 美元 / 人民币 / USDT
+    currency TEXT DEFAULT '',            -- Bs / 美元 / 人民币 / USDT
     amount REAL DEFAULT 0,
     notes TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now','localtime'))
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS supplier_settlements (
     doc_number TEXT DEFAULT '',
     supply_amount_ves REAL DEFAULT 0,
     pay_method TEXT DEFAULT '',          -- 银行卡 / 现金
-    pay_currency TEXT DEFAULT '',        -- 委内瑞拉玻利瓦尔 / 美元
+    pay_currency TEXT DEFAULT '',        -- Bs / 美元 / 人民币
     pay_bank REAL DEFAULT 0,             -- 银行转账
     pay_cash_ves REAL DEFAULT 0,         -- 现金（委币）
     pay_cash_usd REAL DEFAULT 0,         -- 现金（美元）
@@ -272,7 +272,7 @@ def _migrate_income_rows(conn):
             amt = float(rec[amt_col] or 0)
             if not amt:
                 continue
-            cur = (rec[cur_col] if cur_col in keys else None) or config.INCOME_CUR_VES
+            cur = (rec[cur_col] if cur_col in keys else None) or config.INCOME_CUR_BS
             conn.execute(
                 """INSERT INTO daily_income_rows
                    (income_id, store, source, currency, amount)
@@ -297,6 +297,39 @@ def _migrate_expense_items(conn):
                 (rec["date"], rec["summary"] or "", key,
                  rec["pay_method"] or "", rec["pay_currency"] or "", amt,
                  rec["notes"] or ""))
+
+
+def _normalize_currency_columns(conn):
+    """把历史库里玻利瓦尔的各种写法统一成 Bs（VES / 委内瑞拉玻利瓦尔 / Bs.S …）。
+
+    只需要跑一次（幂等）：改完后再查不到旧值，UPDATE 影响 0 行。
+    """
+    legacy = ["VES", "VED", "VEF", "BS", "BSS", "BSF", "Bs.S", "BsF",
+              "BOLIVAR", "BOLÍVAR", "委内瑞拉玻利瓦尔", "玻利瓦尔"]
+    targets = (("documents", "currency"), ("daily_income_rows", "currency"),
+               ("daily_expense", "pay_currency"),
+               ("daily_expense_items", "currency"),
+               ("supplier_settlements", "pay_currency"),
+               ("daily_income", "store_a_card_cur"),
+               ("daily_income", "store_a_cash_cur"),
+               ("daily_income", "store_a_epay_cur"),
+               ("daily_income", "store_b_card_cur"),
+               ("daily_income", "store_b_cash_cur"),
+               ("daily_income", "store_b_epay_cur"))
+    for table, col in targets:
+        try:
+            cols = {r["name"]
+                    for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        except sqlite3.Error:
+            continue
+        if col not in cols:
+            continue
+        ph = ",".join("?" * len(legacy))
+        conn.execute(
+            f"UPDATE {table} SET {col}=? "
+            f"WHERE {col} IS NOT NULL AND TRIM({col}) IN ({ph})",
+            [config.CURRENCY_BS] + legacy)
+    conn.commit()
 
 
 def _migrate(conn):
@@ -343,18 +376,21 @@ def _migrate(conn):
     inc_cols = {r["name"]
                 for r in conn.execute("PRAGMA table_info(daily_income)").fetchall()}
     for col, ddl in (
-            ("store_a_card_cur", "TEXT DEFAULT 'VES'"),
+            ("store_a_card_cur", "TEXT DEFAULT 'Bs'"),
             ("store_a_epay", "REAL DEFAULT 0"),
             ("store_a_epay_cur", "TEXT DEFAULT 'USDT'"),
             ("store_a_cash", "REAL DEFAULT 0"),
-            ("store_a_cash_cur", "TEXT DEFAULT 'VES'"),
-            ("store_b_card_cur", "TEXT DEFAULT 'VES'"),
+            ("store_a_cash_cur", "TEXT DEFAULT 'Bs'"),
+            ("store_b_card_cur", "TEXT DEFAULT 'Bs'"),
             ("store_b_epay", "REAL DEFAULT 0"),
             ("store_b_epay_cur", "TEXT DEFAULT 'USDT'"),
             ("store_b_cash", "REAL DEFAULT 0"),
-            ("store_b_cash_cur", "TEXT DEFAULT 'VES'")):
+            ("store_b_cash_cur", "TEXT DEFAULT 'Bs'")):
         if col not in inc_cols:
             conn.execute(f"ALTER TABLE daily_income ADD COLUMN {col} {ddl}")
+
+    # 币种归一：VES 与 Bs 是同一种货币，历史库中的 VES / 委内瑞拉玻利瓦尔 统一改为 Bs
+    _normalize_currency_columns(conn)
 
     # 收入日报：把旧版固定 A店/B店 列一次性迁入明细表
     try:
@@ -496,7 +532,8 @@ def save_document(doc: dict) -> int:
              doc.get("partner", ""), doc.get("tax_id", ""),
              doc.get("base", 0.0), doc.get("iva_rate", 0.0),
              doc.get("iva_amount", 0.0), doc.get("total", 0.0),
-             doc.get("currency", ""), doc.get("exchange_rate", 0.0),
+             config.normalize_currency(doc.get("currency", "")),
+             doc.get("exchange_rate", 0.0),
              doc.get("cost_total", 0.0),
              doc.get("raw_text", ""), doc.get("source_file", ""),
              doc.get("store", "")))
@@ -687,7 +724,7 @@ def update_document(doc_id: int, doc: dict) -> bool:
              doc.get("base", old["base"]), doc.get("iva_rate", old["iva_rate"]),
              doc.get("iva_amount", old["iva_amount"]),
              doc.get("total", old["total"]),
-             doc.get("currency", old["currency"]),
+             config.normalize_currency(doc.get("currency", old["currency"])),
              doc.get("exchange_rate", old["exchange_rate"]),
              doc.get("store", old["store"]), doc_id))
 
@@ -795,7 +832,8 @@ def save_daily_income(rec: dict) -> int:
                    (income_id, store, source, currency, amount)
                    VALUES (?,?,?,?,?)""",
                 (rec_id, row.get("store", ""), row.get("source", ""),
-                 row.get("currency", config.INCOME_CUR_VES), amt))
+                 config.normalize_currency(
+                     row.get("currency") or config.INCOME_CUR_BS), amt))
         conn.commit()
         return rec_id
     finally:
@@ -889,8 +927,9 @@ def delete_daily_income_row(row_id: int):
 
 
 def daily_income_by_account(date_from=None, date_to=None) -> dict:
-    """把收入日报明细按来源归集到报表科目 key（cash/bank/crypto）。
+    """把收入日报明细按币种归集到报表科目 key（cash=库存现金 / bank=银行存款）。
 
+    USD、Bs、CNY → cash；USDT 稳定币 → bank。
     返回 {"cash": {币种: 金额}, ...}；金额为原始币种，换算由调用方处理。
     """
     out = {"cash": {}, "bank": {}, "crypto": {}}
@@ -899,7 +938,7 @@ def daily_income_by_account(date_from=None, date_to=None) -> dict:
             amt = float(row.get("amount") or 0)
             if not amt:
                 continue
-            cur = row.get("currency") or config.INCOME_CUR_VES
+            cur = config.normalize_currency(row.get("currency")) or config.INCOME_CUR_BS
             key = config.income_account_key(row.get("source"), cur)
             out[key][cur] = out[key].get(cur, 0.0) + amt
     return out
@@ -911,10 +950,10 @@ def _calc_expense_totals(rec: dict):
     """根据方式/币种把各科目合计归集到 total_card/total_ves/total_usd/total_cny。"""
     total = sum(float(rec.get(k, 0) or 0) for k, _ in config.EXPENSE_CATEGORIES)
     method = rec.get("pay_method", "")
-    currency = rec.get("pay_currency", "")
+    currency = config.normalize_currency(rec.get("pay_currency", ""))
     card = total if method == config.PAY_METHOD_CARD else 0
     cash = method == config.PAY_METHOD_CASH
-    ves = total if (cash and currency == config.PAY_CURRENCY_VES) else 0
+    ves = total if (cash and currency == config.PAY_CURRENCY_BS) else 0
     usd = total if (cash and currency == config.PAY_CURRENCY_USD) else 0
     cny = total if (cash and currency == config.PAY_CURRENCY_CNY) else 0
     return card, ves, usd, cny
@@ -935,7 +974,7 @@ def save_daily_expense(rec: dict) -> int:
             "rent": rec.get("rent", 0),
             "municipal": rec.get("municipal", 0),
             "pay_method": rec.get("pay_method", ""),
-            "pay_currency": rec.get("pay_currency", ""),
+            "pay_currency": config.normalize_currency(rec.get("pay_currency", "")),
             "total_card": card,
             "total_ves": ves,
             "total_usd": usd,
@@ -1023,7 +1062,7 @@ def save_daily_expense_item(rec: dict) -> int:
             "summary": rec.get("summary", ""),
             "category": rec.get("category", ""),
             "method": rec.get("method", ""),
-            "currency": rec.get("currency", ""),
+            "currency": config.normalize_currency(rec.get("currency", "")),
             "amount": float(rec.get("amount") or 0),
             "notes": rec.get("notes", ""),
         }
@@ -1094,10 +1133,10 @@ def _calc_supplier_pay(rec: dict):
     """根据方式/币种把支付金额归集到对应列。"""
     amount = float(rec.get("pay_amount", 0) or 0)
     method = rec.get("pay_method", "")
-    currency = rec.get("pay_currency", "")
+    currency = config.normalize_currency(rec.get("pay_currency", ""))
     bank = amount if method == config.PAY_METHOD_CARD else 0
     cash = method == config.PAY_METHOD_CASH
-    cash_ves = amount if (cash and currency == config.PAY_CURRENCY_VES) else 0
+    cash_ves = amount if (cash and currency == config.PAY_CURRENCY_BS) else 0
     cash_usd = amount if (cash and currency == config.PAY_CURRENCY_USD) else 0
     cash_cny = amount if (cash and currency == config.PAY_CURRENCY_CNY) else 0
     return bank, cash_ves, cash_usd, cash_cny
@@ -1114,7 +1153,7 @@ def save_supplier_settlement(rec: dict) -> int:
             "doc_number": rec.get("doc_number", ""),
             "supply_amount_ves": rec.get("supply_amount_ves", 0),
             "pay_method": rec.get("pay_method", ""),
-            "pay_currency": rec.get("pay_currency", ""),
+            "pay_currency": config.normalize_currency(rec.get("pay_currency", "")),
             "pay_bank": bank,
             "pay_cash_ves": cash_ves,
             "pay_cash_usd": cash_usd,

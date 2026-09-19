@@ -18,11 +18,11 @@ LABEL_QTY = r"(?:cantidad|cant\.|uds?\.?|unidades)"
 LABEL_SUPPLIER = r"(?:proveedor|vendedor|emisor|expedida\s+por|firmado\s+por)"
 LABEL_CUSTOMER = r"(?:cliente|comprador|destinatario|a\s+favor\s+de|facturar\s+a)"
 
-# 币种（USD=美元，VES/BS/Bs.=玻利瓦尔，CNY=人民币）
+# 币种（USD=美元，VES/BS/Bs.=玻利瓦尔，统一识别为 Bs，CNY=人民币）
 CURRENCY_PATTERNS = [
     ("EUR", re.compile(r"\bEUR\b|€|EUROS?\b", re.I)),
     ("USD", re.compile(r"\bUSD\b|US\s*\$|D[ÓO]LAR(?:ES)?\b", re.I)),
-    ("VES", re.compile(
+    ("Bs", re.compile(
         r"\bVES\b|\bVED\b|\bBSS\b|\bBsF\b|Bs\.?\s*S\.?|BOL[ÍI]VAR(?:ES)?\b"
         r"|(?<![A-Za-z0-9])Bs\.?(?![A-Za-z0-9])", re.I)),
     ("CNY", re.compile(r"\bCNY\b|\bRMB\b|[¥￥]|人民币|(?<=\d)\s*元\b")),
@@ -35,7 +35,7 @@ _SKIP_RATE_LINE = re.compile(
 
 
 def detect_currency(texts) -> str:
-    """识别单据币种，返回标准代码（EUR/USD/VES/CNY）或空串。
+    """识别单据币种，返回标准代码（EUR/USD/Bs/CNY）或空串（VES 归一为 Bs）。
 
     跳过汇率行；同一行出现两种及以上币种视为汇率对照行也跳过；
     按出现次数取多数。
@@ -51,7 +51,7 @@ def detect_currency(texts) -> str:
         if _SYMBOL_DOLLAR.search(ln):
             hit.add("USD")
         if _SYMBOL_BS.search(ln):
-            hit.add("VES")
+            hit.add("Bs")
         if _SYMBOL_YUAN.search(ln):
             hit.add("CNY")
         if len(hit) > 1:      # 汇率对照行（如 "Bs. 36,50 / USD"）

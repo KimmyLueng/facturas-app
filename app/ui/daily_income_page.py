@@ -3,10 +3,9 @@
 - 一笔一行：同一天可录入不同币种、不同支付方式的多笔收入。
 - 「分店」下拉读取「设置 → 分店列表（Sucursales）」。
 - 「支付方式」下拉：银行卡 / 电子支付 / 现钞，各自限定可选币种。
-- 科目归属（财务报表）：
-    现钞            → 库存现金
-    银行卡          → 银行存款
-    电子支付(稳定币) → 其他货币资金
+- 科目归属（财务报表，按币种）：
+    USD / Bs / CNY  → 库存现金
+    USDT 稳定币      → 银行存款
 """
 import datetime
 import tkinter as tk
@@ -20,9 +19,8 @@ from app.utils import format_amount, parse_amount, date_iso
 
 # 科目归集展示：科目 key → 说明
 ACCOUNT_LABELS = (
-    ("cash", "现钞 → 库存现金"),
-    ("bank", "银行卡 → 银行存款"),
-    ("crypto", "电子支付(稳定币) → 其他货币资金"),
+    ("cash", "USD/Bs/CNY → 库存现金"),
+    ("bank", "USDT 稳定币 → 银行存款"),
 )
 
 
@@ -135,7 +133,8 @@ class DailyIncomePage:
     @staticmethod
     def _cur_code(label):
         """界面中文标签 → 币种代码（已是代码则原样返回）。"""
-        for c in (config.INCOME_CUR_VES, config.INCOME_CUR_USD, config.INCOME_CUR_USDT):
+        for c in (config.INCOME_CUR_BS, config.INCOME_CUR_USD, config.INCOME_CUR_CNY,
+                  config.INCOME_CUR_USDT):
             if config.income_currency_label(c) == label:
                 return c
         return label
@@ -146,7 +145,7 @@ class DailyIncomePage:
 
     def _sync_currencies(self):
         codes = config.INCOME_SOURCE_CURRENCIES.get(
-            self.vars["method"].get(), [config.INCOME_CUR_VES])
+            self.vars["method"].get(), [config.INCOME_CUR_BS])
         labels = [config.income_currency_label(c) for c in codes]
         self.cur_combo["values"] = labels
         current = self.vars["currency"].get()
