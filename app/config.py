@@ -86,13 +86,33 @@ DEFAULT_BASE_CURRENCY = "USD"   # 本位币（记账币种），可在设置中�
 CURRENCY_CODES = [CURRENCY_EUR, CURRENCY_USD, CURRENCY_BS, CURRENCY_CNY,
                   CURRENCY_USDT, "MXN", "ARS", "COP"]
 
+# 币种中文名称（各模块下拉统一显示「中文名称（简称）」，库中存代码）
+CURRENCY_ZH = {
+    CURRENCY_EUR: "欧元",
+    CURRENCY_USD: "美元",
+    CURRENCY_BS: "玻利瓦尔",
+    CURRENCY_CNY: "人民币",
+    CURRENCY_USDT: "泰达币",
+    "MXN": "墨西哥比索",
+    "ARS": "阿根廷比索",
+    "COP": "哥伦比亚比索",
+    "PEN": "秘鲁索尔",
+    "CLP": "智利比索",
+    "BRL": "巴西雷亚尔",
+}
+
 # 玻利瓦尔的历史写法 / 别名 → 统一为 Bs（VES、VED、VEF、Bs.、Bs.S、BOLIVAR…）
+# 以及旧版本把中文名直接存库的历史数据（美元 / 人民币 / USDT 泰达币）
 _CURRENCY_ALIASES = {
     "VES": CURRENCY_BS, "VED": CURRENCY_BS, "VEF": CURRENCY_BS,
     "BS": CURRENCY_BS, "BSS": CURRENCY_BS, "BSF": CURRENCY_BS,
     "BS.S": CURRENCY_BS, "BSS.S": CURRENCY_BS,
     "BOLIVAR": CURRENCY_BS, "BOLÍVAR": CURRENCY_BS, "BOLIVARES": CURRENCY_BS,
     "委内瑞拉玻利瓦尔": CURRENCY_BS, "玻利瓦尔": CURRENCY_BS,
+    "美元": CURRENCY_USD, "美金": CURRENCY_USD,
+    "人民币": CURRENCY_CNY, "元": CURRENCY_CNY,
+    "USDT 泰达币": CURRENCY_USDT, "USDT泰达币": CURRENCY_USDT,
+    "泰达币": CURRENCY_USDT, "数字加密稳定币": CURRENCY_USDT,
 }
 
 
@@ -100,7 +120,8 @@ def normalize_currency(code) -> str:
     """把币种的各种写法归一到标准代码。
 
     主要用途：VES 与 Bs 是同一种货币，统一按 Bs 存储与显示。
-    旧库里的 VES / VED / Bs. / 委内瑞拉玻利瓦尔 都会被读成 Bs。
+    旧库里的 VES / VED / Bs. / 委内瑞拉玻利瓦尔 都会被读成 Bs；
+    旧版本存成中文的「美元 / 人民币 / USDT 泰达币」也归一为 USD / CNY / USDT。
     """
     c = str(code or "").strip()
     if not c:
@@ -113,20 +134,52 @@ def normalize_currency(code) -> str:
             return std
     return c
 
+
+def currency_label(code) -> str:
+    """币种代码 → 统一显示名「中文名称（简称）」，如 美元（USD）、玻利瓦尔（Bs）。"""
+    c = normalize_currency(code)
+    if not c:
+        return ""
+    return f"{CURRENCY_ZH.get(c, c)}（{c}）"
+
+
+def currency_code(text) -> str:
+    """显示名 / 代码 → 标准代码：美元（USD）→ USD、人民币 → CNY、Bs → Bs。"""
+    s = str(text or "").strip()
+    if not s:
+        return ""
+    inner = ""
+    if "（" in s and "）" in s:
+        inner = s[s.index("（") + 1:s.rindex("）")].strip()
+    elif "(" in s and ")" in s:
+        inner = s[s.index("(") + 1:s.rindex(")")].strip()
+    for cand in (inner, s):
+        if not cand:
+            continue
+        code = normalize_currency(cand)
+        if code in CURRENCY_CODES or code in _CURRENCY_ALIASES.values():
+            return code
+    return normalize_currency(s)
+
 # 收/付款方式（下拉选取）
 PAY_METHOD_CARD = "银行卡"
 PAY_METHOD_EPAY = "电子支付"
 PAY_METHOD_CASH = "现金"
 PAY_METHODS = [PAY_METHOD_CARD, PAY_METHOD_EPAY, PAY_METHOD_CASH]
 
-# 日常交易币种（界面与库中统一用代码显示；Bs = 委内瑞拉玻利瓦尔）
+# 日常交易币种（库中一律存代码；界面按 currency_label() 显示「中文名称（简称）」）
 PAY_CURRENCY_BS = "Bs"
 PAY_CURRENCY_VES = PAY_CURRENCY_BS   # 兼容旧写法
-PAY_CURRENCY_USD = "美元"
-PAY_CURRENCY_CNY = "人民币"
-PAY_CURRENCY_USDT = "USDT 泰达币"
+PAY_CURRENCY_USD = "USD"
+PAY_CURRENCY_CNY = "CNY"
+PAY_CURRENCY_USDT = "USDT"
 PAY_CURRENCIES = [PAY_CURRENCY_BS, PAY_CURRENCY_USD, PAY_CURRENCY_CNY,
                   PAY_CURRENCY_USDT]
+
+
+def pay_currency_labels() -> list:
+    """日常交易币种的显示名列表（与 PAY_CURRENCIES 一一对应）。"""
+    return [currency_label(c) for c in PAY_CURRENCIES]
 
 # ------------------------------------------------ 店铺收入日报：营业额来源
 INCOME_SOURCE_CARD = "银行卡"        # → 银行存款
@@ -141,10 +194,10 @@ INCOME_CUR_USD = "USD"
 INCOME_CUR_CNY = "CNY"
 INCOME_CUR_USDT = "USDT"
 INCOME_CURRENCY_LABELS = {
-    INCOME_CUR_BS: "委内瑞拉玻利瓦尔 (Bs)",
-    INCOME_CUR_USD: "美元 (USD)",
-    INCOME_CUR_CNY: "人民币 (CNY)",
-    INCOME_CUR_USDT: "数字加密稳定币 (USDT)",
+    INCOME_CUR_BS: currency_label(INCOME_CUR_BS),
+    INCOME_CUR_USD: currency_label(INCOME_CUR_USD),
+    INCOME_CUR_CNY: currency_label(INCOME_CUR_CNY),
+    INCOME_CUR_USDT: currency_label(INCOME_CUR_USDT),
 }
 # 各来源可选币种
 INCOME_CARD_CURRENCIES = [INCOME_CUR_BS, INCOME_CUR_USD, INCOME_CUR_CNY]

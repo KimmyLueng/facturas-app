@@ -24,6 +24,8 @@ from app.utils import date_iso, format_amount, parse_amount, parse_date
 
 app = Flask(__name__)
 app.jinja_env.filters["money"] = lambda v: format_amount(float(v or 0))
+# 币种统一显示「中文名称（简称）」，模板里：{{ d.currency | cur }}
+app.jinja_env.filters["cur"] = lambda v: config.currency_label(v) or (v or "")
 
 NAV = [
     ("dashboard", "概览"),
@@ -167,7 +169,10 @@ def expense():
     return render_template(
         "expense.html", active="expense", rows=rows, today=_today(),
         categories=settings_mod.get_expense_categories(),
-        methods=config.PAY_METHODS, currencies=config.PAY_CURRENCIES,
+        # 付款方式 = 科目表里货币资金的明细科目
+        methods=reports_mod.payment_account_options(),
+        currencies=[{"code": c, "label": config.currency_label(c)}
+                    for c in config.PAY_CURRENCIES],
         edit=edit)
 
 
@@ -307,16 +312,19 @@ def reports():
     dfrom = parse_date(frm) if frm else None
     dto = parse_date(to) if to else None
     capital = float(settings_mod.load_settings().get("capital_inicial", 0) or 0)
-    rows, error = [], None
+    rows, error, trial = [], None, None
     try:
         # get_report 返回 (报表 dict, 未换算单据 list)
         res = reports_mod.get_report(rtype, dfrom, dto, capital)
         data = res[0] if isinstance(res, tuple) else res
-        rows = _report_rows(data or {})
+        if rtype == "trial":     # 科目余额表：单独的多列表格
+            trial = data or {}
+        else:
+            rows = _report_rows(data or {})
     except Exception as e:  # noqa: BLE001
         error = str(e)
     return render_template("reports.html", active="reports", rtype=rtype,
-                           rows=rows, error=error, frm=frm, to=to)
+                           rows=rows, error=error, frm=frm, to=to, trial=trial)
 
 
 # ------------------------------------------------------------------ 设置
@@ -326,7 +334,9 @@ def settings():
         try:
             s = settings_mod.load_settings()
             s["capital_inicial"] = parse_amount(request.form.get("capital_inicial"))
-            s["base_currency"] = (request.form.get("base_currency") or "").strip().upper()
+            # 下拉里是「中文名称（简称）」，存库仍用代码
+            s["base_currency"] = config.currency_code(
+                request.form.get("base_currency"))
             s["usd_to_base"] = parse_amount(request.form.get("usd_to_base"))
             s["usd_ves_official"] = parse_amount(request.form.get("usd_ves_official"))
             s["usd_cny"] = parse_amount(request.form.get("usd_cny"))

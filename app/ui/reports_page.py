@@ -31,6 +31,8 @@ class ReportsPage:
                         variable=self.type_var).pack(side="left", padx=6)
         ttk.Radiobutton(row, text="利润表", value="income",
                         variable=self.type_var).pack(side="left", padx=6)
+        ttk.Radiobutton(row, text="科目余额表", value="trial",
+                        variable=self.type_var).pack(side="left", padx=6)
 
         today = datetime.date.today()
         year_start = datetime.date(today.year, 1, 1)
@@ -51,15 +53,13 @@ class ReportsPage:
         ttk.Label(f, textvariable=self.summary_var, foreground="#1f6feb",
                   font=("Microsoft YaHei UI", 10)).pack(fill="x", padx=14, pady=4)
 
-        # 报表表格
-        base_cur = self.app.state.settings.get("base_currency", "USD")
-        cols = ("name", "amount")
-        self.tree = ttk.Treeview(f, columns=cols, show="headings", height=22)
-        self.tree.heading("name", text="项目")
-        self.tree.heading("amount", text=f"金额（本位币 {base_cur}）")
-        self.tree.column("name", width=560, anchor="w")
-        self.tree.column("amount", width=200, anchor="e")
+        # 报表表格（列随报表类型切换：资产负债表/利润表两列，科目余额表多列）
+        self.tree = ttk.Treeview(f, columns=("name", "amount"),
+                                 show="headings", height=22)
+        self._setup_cols(self._two_cols())
         self.tree.pack(fill="both", expand=True, padx=14, pady=8)
+        self.tree.tag_configure("bold", font=("Microsoft YaHei UI", 10, "bold"))
+        self.tree.tag_configure("sub", foreground="#1f6feb")
 
         self.src_var = tk.StringVar(
             value="期初来源：—（生成报表后显示，取自科目表期初余额）")
@@ -113,10 +113,66 @@ class ReportsPage:
         if note:
             messagebox.showinfo("币种提示", note, parent=self.frame)
 
+    # ------------------------------------------------------------ 表格列
+    def _base_cur(self) -> str:
+        return config.currency_label(
+            self.report.get("base_currency")
+            or self.app.state.settings.get("base_currency", "USD"))
+
+    def _two_cols(self) -> list:
+        """资产负债表 / 利润表：项目 + 金额两列。"""
+        return [("name", "项目", 560, "w"),
+                ("amount", f"金额（本位币 {self._base_cur()}）", 200, "e")]
+
+    def _trial_cols(self) -> list:
+        """科目余额表：科目 + 期初/本期/期末 借贷六列。"""
+        return [("code", "科目编码", 100, "w"),
+                ("name", "科目名称", 260, "w"),
+                ("opening_debit", "期初借方", 105, "e"),
+                ("opening_credit", "期初贷方", 105, "e"),
+                ("debit", "本期借方", 105, "e"),
+                ("credit", "本期贷方", 105, "e"),
+                ("ending_debit", "期末借方", 105, "e"),
+                ("ending_credit", "期末贷方", 105, "e")]
+
+    def _setup_cols(self, cols):
+        self.tree["columns"] = [c[0] for c in cols]
+        self.tree["displaycolumns"] = [c[0] for c in cols]
+        for cid, title, width, anchor in cols:
+            self.tree.heading(cid, text=title)
+            self.tree.column(cid, width=width, anchor=anchor)
+
+    def _render_trial(self):
+        """科目余额表：全部科目（层级缩进，父科目汇总其明细）。"""
+        self._setup_cols(self._trial_cols())
+        keys = ("opening_debit", "opening_credit", "debit", "credit",
+                "ending_debit", "ending_credit")
+        for row in self.report.get("rows", []):
+            tag = "bold" if row.get("is_parent") else ""
+            self.tree.insert("", "end", values=(
+                row["code"], row["name"],
+                *[format_amount(row[k]) for k in keys]), tags=(tag,))
+        t = self.report.get("totals") or {}
+        self.tree.insert("", "end", values=(
+            "合计", "（末级科目合计）", *[format_amount(t.get(k, 0.0)) for k in keys]),
+            tags=("sub",))
+        n = len(self.report.get("rows", []))
+        self.summary_var.set(
+            f"科目余额表：{n} 个科目 · 本期借方 {format_amount(t.get('debit', 0.0))} "
+            f"/ 贷方 {format_amount(t.get('credit', 0.0))} · "
+            f"期末借方 {format_amount(t.get('ending_debit', 0.0))} "
+            f"/ 贷方 {format_amount(t.get('ending_credit', 0.0))} · "
+            f"含 {len(self.docs)} 张单据" +
+            (f"\n{self.report.get('currency_note') or ''}"
+             if self.report.get("currency_note") else ""))
+
     def _render(self):
         self.tree.delete(*self.tree.get_children())
         doc_type = self.type_var.get()
-        if doc_type == "balance":
+        if doc_type == "trial":
+            self._render_trial()
+        elif doc_type == "balance":
+            self._setup_cols(self._two_cols())
             r = self.report
             self._section("ACTIVO · 资产", r["activo"])
             self._section("PASIVO · 负债", r["pasivo"])
@@ -137,6 +193,7 @@ class ReportsPage:
                 f"含 {len(self.docs)} 张单据" +
                 (f"\n{note}" if note else ""))
         else:
+            self._setup_cols(self._two_cols())
             r = self.report
             for row in r["rows"]:
                 tag = "bold" if row.get("bold") else ""
@@ -169,7 +226,8 @@ class ReportsPage:
             return
         d_from, d_to = self._parse_range()
         doc_type = self.type_var.get()
-        name = {"balance": "balance", "income": "resultados"}[doc_type]
+        name = {"balance": "balance", "income": "resultados",
+                "trial": "balance_comprobacion"}[doc_type]
         default = os.path.join(config.DATA_DIR,
                                f"informe_{name}_{datetime.date.today().isoformat()}.pdf")
         path = filedialog.asksaveasfilename(

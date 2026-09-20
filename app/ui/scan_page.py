@@ -104,8 +104,9 @@ class ScanPage:
         r = len(labels) + len(money_keys)
         ttk.Label(form, text="Moneda / 币种").grid(row=r, column=0, sticky="w", pady=3)
         self.vars["currency"] = tk.StringVar()
-        cb = ttk.Combobox(form, textvariable=self.vars["currency"], width=14,
-                          values=["", "USD", "Bs", "CNY", "USDT"])
+        cb = ttk.Combobox(form, textvariable=self.vars["currency"], width=16,
+                          values=[""] + [config.currency_label(c)
+                                         for c in ("USD", "Bs", "CNY", "USDT")])
         cb.grid(row=r, column=1, sticky="we", padx=8, pady=3)
 
         r2 = r + 1
@@ -281,7 +282,8 @@ class ScanPage:
         self.vars["iva_amount"].set(str(doc.get("iva_amount", 0.0) or 0.0))
         self.vars["total"].set(str(doc.get("total", 0.0) or 0.0))
         # 根据图片识别结果默认币种：USD
-        self.vars["currency"].set(doc.get("currency", "USD") or "USD")
+        self.vars["currency"].set(
+            config.currency_label(doc.get("currency") or "USD"))
         er = doc.get("exchange_rate") or 0.0
         self.vars["exchange_rate"].set(str(er) if er else "")
 
@@ -573,7 +575,7 @@ class ScanPage:
             "iva_rate": parse_amount(self.vars["iva_rate"].get()),
             "iva_amount": parse_amount(self.vars["iva_amount"].get()),
             "total": parse_amount(self.vars["total"].get()),
-            "currency": self.vars["currency"].get().strip().upper(),
+            "currency": config.currency_code(self.vars["currency"].get()),
             "exchange_rate": parse_amount(self.vars["exchange_rate"].get()),
             "store": self.vars["store"].get().strip(),
             "items": self.items,

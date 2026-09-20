@@ -58,7 +58,7 @@ class DocumentsPage:
                  "partner": "供应商/客户", "currency": "币种", "base": "Base",
                  "iva": "IVA", "total": "Total"}
         widths = {"id": 50, "reviewed": 70, "direction": 60, "doc_number": 110,
-                  "date": 90, "store": 70, "partner": 180, "currency": 60,
+                  "date": 90, "store": 70, "partner": 180, "currency": 110,
                   "base": 100, "iva": 90, "total": 110}
         self.tree = ttk.Treeview(f, columns=cols, show="headings")
         for c in cols:
@@ -114,7 +114,7 @@ class DocumentsPage:
                 d["id"], "已审核" if ok else "待审核", direction_txt,
                 d["doc_number"] or "-", d["date"] or "-",
                 d.get("store") or "-", d["partner_name"] or "-",
-                d.get("currency") or "-",
+                config.currency_label(d.get("currency")) or d.get("currency") or "-",
                 format_amount(d["base"]), format_amount(d["iva_amount"]),
                 format_amount(d["total"])),
                 tags=("ok" if ok else "pending",))
@@ -256,7 +256,8 @@ class DocumentsPage:
             "store": tk.StringVar(value=doc.get("store") or ""),
             "partner": tk.StringVar(value=doc.get("partner_name") or ""),
             "tax_id": tk.StringVar(value=doc.get("tax_id") or ""),
-            "currency": tk.StringVar(value=doc.get("currency") or ""),
+            "currency": tk.StringVar(
+                value=config.currency_label(doc.get("currency"))),
             "exchange_rate": tk.StringVar(value=str(doc.get("exchange_rate") or "")),
             "iva_rate": tk.StringVar(value=str(doc.get("iva_rate") or 0)),
             "base": tk.StringVar(value=str(doc.get("base") or 0)),
@@ -285,8 +286,10 @@ class DocumentsPage:
         ttk.Combobox(form, textvariable=v["store"], width=9,
                      values=[""] + stores).grid(row=1, column=3, sticky="w")
         ttk.Label(form, text=" 币种：").grid(row=1, column=4, sticky="w")
-        ttk.Combobox(form, textvariable=v["currency"], width=8,
-                     values=[""] + list(config.CURRENCY_CODES)).grid(row=1, column=5, sticky="w")
+        ttk.Combobox(form, textvariable=v["currency"], width=16,
+                     values=[""] + [config.currency_label(c)
+                                    for c in config.CURRENCY_CODES]).grid(
+            row=1, column=5, sticky="w")
 
         ttk.Label(form, text="往来单位：").grid(row=2, column=0, sticky="w", pady=3)
         ttk.Entry(form, textvariable=v["partner"], width=30).grid(
@@ -396,7 +399,7 @@ class DocumentsPage:
                 "store": v["store"].get().strip(),
                 "partner": v["partner"].get().strip(),
                 "tax_id": v["tax_id"].get().strip(),
-                "currency": v["currency"].get().strip(),
+                "currency": config.currency_code(v["currency"].get()),
                 "exchange_rate": self._num(v["exchange_rate"].get()),
                 "iva_rate": self._num(v["iva_rate"].get()),
                 "base": self._num(v["base"].get()),
@@ -445,7 +448,8 @@ class DocumentsPage:
             + (f"    分店: {doc.get('store') or '-'}" if doc.get("store") else ""),
             f"日期: {doc['date']}",
             f"供应商/客户: {doc['partner_name']}    NIF: {doc['tax_id']}",
-            f"币种: {cur}" + (f"    单据汇率(1 USD = X): {format_amount(er)}" if er else ""),
+            f"币种: {config.currency_label(cur) or cur}" + (
+                f"    单据汇率(1 USD = X): {format_amount(er)}" if er else ""),
             f"Base: {format_amount(doc['base'])}    IVA {doc['iva_rate']}%: {format_amount(doc['iva_amount'])}",
             f"Total: {format_amount(doc['total'])}",
             "",

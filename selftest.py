@@ -16,6 +16,7 @@ from app import config  # noqa: E402
 from app.db import database  # noqa: E402
 from app.rates import convert_to_base  # noqa: E402
 from app.accounting import build_balance_sheet, build_income_statement  # noqa: E402
+from app.accounting import reports  # noqa: E402
 from app.sync import manager as sync_manager  # noqa: E402
 
 PASS = 0
@@ -504,6 +505,81 @@ def main():
             print("  [SKIP] 期初余额 Excel：未安装 openpyxl")
     finally:
         config.DB_PATH = old_db
+
+    print("== 6f. 币种名称统一「中文名称（简称）」 ==")
+    check("USD 显示名", config.currency_label("USD") == "美元（USD）",
+          f"got={config.currency_label('USD')}")
+    check("Bs 显示名（VES 同币）",
+          config.currency_label("VES") == "玻利瓦尔（Bs）",
+          f"got={config.currency_label('VES')}")
+    check("显示名 → 代码", config.currency_code("人民币（CNY）") == "CNY",
+          f"got={config.currency_code('人民币（CNY）')}")
+    check("代码 → 代码", config.currency_code("USDT") == "USDT")
+    check("旧中文写法归一", config.normalize_currency("美元") == "USD"
+          and config.normalize_currency("人民币") == "CNY"
+          and config.normalize_currency("USDT 泰达币") == "USDT")
+    check("收入日报币种下拉用统一名",
+          config.INCOME_CURRENCY_LABELS["Bs"] == "玻利瓦尔（Bs）",
+          f"got={config.INCOME_CURRENCY_LABELS}")
+
+    print("== 6g. 付款方式 ↔ 货币资金明细科目 ==")
+    # 换一张干净的临时库：含默认科目表（1001 库存现金 / 1002 银行存款 / 1012 …）
+    tmp_db2 = os.path.join(tempfile.mkdtemp(prefix="facturas_selftest2_"), "t.db")
+    config.DB_PATH = tmp_db2
+    database.init_db()
+    opts = reports.payment_account_options()
+    check("付款方式取自科目表明细", bool(opts)
+          and all(o.get("name") for o in opts), f"got={opts}")
+    root_set = {o["root"] for o in opts}
+    check("覆盖 库存现金/银行存款/其他货币资金",
+          {"1001", "1002", "1012"} & root_set == {"1001", "1002", "1012"},
+          f"got={root_set}")
+    leaf = next((o for o in opts if o["root"] == "1002"), opts[0])
+    check("同名科目精确匹配", reports.resolve_payment_account(leaf["name"])
+          == leaf["code"], f"got={reports.resolve_payment_account(leaf['name'])}")
+    check("银行卡回退到银行存款",
+          reports.resolve_payment_account("银行卡")
+          == reports.resolve_account(reports.load_chart_index(), "bank"))
+    check("付款渠道：现金科目→cash",
+          reports.payment_channel("库存现金") == "cash",
+          f"got={reports.payment_channel('库存现金')}")
+    check("付款渠道：银行科目→bank",
+          reports.payment_channel(leaf["name"]) == "bank",
+          f"got={reports.payment_channel(leaf['name'])}")
+    check("付款渠道：兼容旧「银行卡」",
+          reports.payment_channel(config.PAY_METHOD_CARD) == "bank")
+    database.save_supplier_settlement({
+        "partner_name": "Prov1", "date": "2026-09-15", "pay_amount": 100,
+        "pay_method": "库存现金", "pay_currency": "Bs",
+        "debit_amount": 0, "credit_amount": 0, "notes": ""})
+    rows = [r for r in database.list_supplier_settlements()
+            if r["pay_method"] == "库存现金"]
+    check("供应商结算按科目归集（现金 Bs）",
+          rows and abs(rows[0]["pay_cash_ves"] - 100) < 0.01
+          and abs(rows[0]["pay_bank"] - 0) < 0.01, f"got={rows[0] if rows else None}")
+
+    print("== 6h. 科目余额表 ==")
+    trial = reports.build_trial_balance(
+        database.list_documents(), 0.0)["rows"]
+    codes = [r["code"] for r in trial]
+    check("列出全部科目", len(codes) > 100, f"got={len(codes)}")
+    check("含末级科目 100201 与其上级 1002",
+          "100201" in codes and "1002" in codes)
+    parent = next((r for r in trial if r["code"] == "1002"), None)
+    child = next((r for r in trial if r["code"] == "100201"), None)
+    check("父科目汇总其明细",
+          parent and child and not child["is_parent"]
+          and parent["is_parent"], f"got={parent} / {child}")
+    tot = reports.build_trial_balance(database.list_documents(), 0.0)["totals"]
+    check("本期借贷合计相等",
+          abs(tot["debit"] - tot["credit"]) < 0.01, f"got={tot}")
+    check("期末借贷合计相等",
+          abs(tot["ending_debit"] - tot["ending_credit"]) < 0.01, f"got={tot}")
+    rep = reports.get_report("trial")
+    rep = rep[0] if isinstance(rep, tuple) else rep
+    check("get_report('trial') 可用",
+          bool(rep.get("rows")) and "base_currency" in rep)
+    config.DB_PATH = old_db
 
     print(f"\n结果: {PASS} 通过, {FAIL} 失败")
     sys.exit(1 if FAIL else 0)

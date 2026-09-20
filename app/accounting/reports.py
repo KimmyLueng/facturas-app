@@ -103,6 +103,106 @@ def resolve_account(chart: dict, key: str) -> str:
     return FALLBACK_ACCOUNTS.get(key, "")
 
 
+# ------------------------------------------------ 付款方式 ↔ 货币资金明细科目
+# 付款方式下拉直接取科目表里「货币资金」类（1001 库存现金 / 1002 银行存款 /
+# 1012 其他货币资金）的明细科目，选中即入账到同名科目。
+FUND_ROOT_CODES = ("1001", "1002", "1012")
+
+
+def _fund_root(code: str) -> str:
+    for root in FUND_ROOT_CODES:
+        if str(code or "").startswith(root):
+            return root
+    return ""
+
+
+def payment_account_options() -> list:
+    """付款方式下拉项：货币资金类科目的明细科目。
+
+    返回 [{'code','name','label','root'}]，label 含上级科目名（如 银行存款－基本户）。
+    科目表为空时回退 config.PAY_METHODS。
+    """
+    chart = load_chart_index()
+    out = []
+    for code in sorted(chart):
+        root = _fund_root(code)
+        if not root:
+            continue
+        node = chart[code] or {}
+        if not node.get("is_leaf"):
+            continue
+        parent = (node.get("parent") or "").strip()
+        pname = (chart.get(parent, {}) or {}).get("name", "")
+        name = node.get("name") or code
+        label = f"{pname}－{name}" if pname and pname != name else name
+        out.append({"code": code, "name": name, "label": label, "root": root})
+    # 某类只有汇总科目（无明细）时，用汇总科目本身兜底
+    for root in FUND_ROOT_CODES:
+        if any(o["root"] == root for o in out) or root not in chart:
+            continue
+        name = (chart[root] or {}).get("name") or root
+        out.append({"code": root, "name": name, "label": name, "root": root})
+    if not out:      # 科目表未初始化
+        return [{"code": "", "name": m, "label": m, "root": ""}
+                for m in config.PAY_METHODS]
+    out.sort(key=lambda x: x["code"])
+    return out
+
+
+def payment_account_labels() -> list:
+    """付款方式下拉显示文本列表。"""
+    return [o["label"] for o in payment_account_options()]
+
+
+def resolve_payment_account(method: str) -> str:
+    """付款方式文本 → 科目编码。
+
+    先按科目编码 / 科目名称精确匹配（同名子科目优先），再按关键字回退
+    （现金→库存现金、银行卡→银行存款、电子支付→其他货币资金）。
+    """
+    text = (method or "").strip()
+    if not text:
+        return ""
+    chart = load_chart_index()
+    if text in chart:
+        return text
+    for code, node in chart.items():
+        if (node or {}).get("name") == text:
+            return code
+    for opt in payment_account_options():
+        if opt["label"] == text or (opt["name"] and opt["name"] in text):
+            return opt["code"]
+    if "现金" in text:
+        return resolve_account(chart, "cash")
+    if "银行" in text or "卡" in text:
+        return resolve_account(chart, "bank")
+    if "电子" in text or "扫码" in text or "USDT" in text.upper():
+        return resolve_account(chart, "crypto")
+    return ""
+
+
+def payment_channel(method: str) -> str:
+    """付款方式 → 资金渠道：bank（银行）/ cash（现金）。
+
+    兼容旧数据里的「银行卡」「现金」文本。
+    """
+    text = (method or "").strip()
+    if not text:
+        return ""
+    if text == config.PAY_METHOD_CARD:
+        return "bank"
+    if text == config.PAY_METHOD_CASH:
+        return "cash"
+    code = resolve_payment_account(text) or resolve_account(
+        load_chart_index(), "bank")
+    root = _fund_root(code)
+    if root == "1001":
+        return "cash"
+    if root in ("1002", "1012"):
+        return "bank"
+    return ""
+
+
 def opening_balances(year=None) -> dict:
     """科目表期初余额（signed：借正贷负）。
 
@@ -134,24 +234,36 @@ def opening_source(year=None, capital=0.0) -> str:
 
 
 # ---------------------------------------------------------------- 科目余额
-def compute_balances(docs, capital=0.0, year=None, costs=None) -> dict:
-    """返回科目余额 dict {account_code: signed}，约定借方为正、贷方为负。"""
+def compute_movements(docs, capital=0.0, year=None, costs=None):
+    """返回 (科目余额 {code: signed}, 本期发生额 {code: {'debit', 'credit'}})。
+
+    约定借方为正、贷方为负；期初余额不计入本期发生额。
+    """
     chart = load_chart_index()
     acc = {k: resolve_account(chart, k) for k in FALLBACK_ACCOUNTS}
     bal = {}
+    moves = {}
 
-    def add(code, amount):
-        if code:
-            bal[code] = bal.get(code, 0.0) + amount
+    def add(code, amount, move=True):
+        if not code:
+            return
+        bal[code] = bal.get(code, 0.0) + amount
+        if not move:      # 期初不算本期发生额
+            return
+        mv = moves.setdefault(code, {"debit": 0.0, "credit": 0.0})
+        if amount >= 0:
+            mv["debit"] += amount
+        else:
+            mv["credit"] += -amount
 
     # 期初：优先科目表期初余额，否则回退设置中的期初资本
     opening = opening_balances(year)
     if any(opening.values()):
         for code, amt in opening.items():
-            add(code, amt)
+            add(code, amt, move=False)
     elif capital:
-        add(acc["cash"], float(capital))
-        add(acc["capital"], -float(capital))
+        add(acc["cash"], float(capital), move=False)
+        add(acc["capital"], -float(capital), move=False)
 
     if costs is None:
         costs = _running_avg_cost(docs)
@@ -171,6 +283,12 @@ def compute_balances(docs, capital=0.0, year=None, costs=None) -> dict:
             add(acc["cost_of_sales"], cost)
             add(acc["inventory"], -cost)
             d["cost_total"] = cost
+    return bal, moves
+
+
+def compute_balances(docs, capital=0.0, year=None, costs=None) -> dict:
+    """返回科目余额 dict {account_code: signed}，约定借方为正、贷方为负。"""
+    bal, _moves = compute_movements(docs, capital, year, costs)
     return bal
 
 
@@ -266,8 +384,88 @@ def build_income_statement(docs, year=None) -> dict:
     }
 
 
+def _ancestor_codes(chart: dict, code: str) -> list:
+    """科目的所有上级科目编码（由近到远）。"""
+    out, seen = [], {code}
+    cur = ((chart.get(code) or {}).get("parent") or "").strip()
+    if not cur:      # 科目表未维护 parent 时按编码前缀推断
+        for i in range(len(code) - 1, 1, -1):
+            if code[:i] in chart:
+                cur = code[:i]
+                break
+    while cur and cur in chart and cur not in seen:
+        out.append(cur)
+        seen.add(cur)
+        cur = ((chart[cur] or {}).get("parent") or "").strip()
+    return out
+
+
+def build_trial_balance(docs, capital=0.0, year=None) -> dict:
+    """科目余额表：列出全部科目（按层级缩进，父科目自动汇总其明细）。
+
+    每行含 期初余额（借/贷）、本期发生额（借/贷）、期末余额（借/贷）。
+    """
+    chart = load_chart_index()
+    _bal, moves = compute_movements(docs, capital, year)
+    opening = opening_balances(year)
+    if not any(opening.values()) and capital:
+        acc = {k: resolve_account(chart, k) for k in FALLBACK_ACCOUNTS}
+        opening = {acc["cash"]: float(capital),
+                   acc["capital"]: -float(capital)}
+
+    parents = set()
+    codes = sorted(set(chart) | set(moves) | set(opening))
+    for code in codes:
+        parents.update(_ancestor_codes(chart, code))
+
+    own = {}
+    for code in codes:
+        op = float(opening.get(code, 0.0) or 0)
+        mv = moves.get(code) or {}
+        debit = float(mv.get("debit", 0.0))
+        credit = float(mv.get("credit", 0.0))
+        own[code] = {"opening": op, "debit": debit, "credit": credit,
+                     "ending": op + debit - credit}
+
+    agg = {c: dict(v) for c, v in own.items()}
+    for code in codes:
+        for anc in _ancestor_codes(chart, code):
+            node = agg.setdefault(
+                anc, {"opening": 0.0, "debit": 0.0, "credit": 0.0,
+                      "ending": 0.0})
+            for k in ("opening", "debit", "credit", "ending"):
+                node[k] += own[code][k]
+
+    rows = []
+    for code in sorted(agg):
+        v = agg[code]
+        node = chart.get(code) or {}
+        name = node.get("name") or config.ACCOUNT_NAMES.get(code, code)
+        level = len(_ancestor_codes(chart, code))
+        rows.append({
+            "code": code,
+            "name": ("　" * level) + str(name),
+            "plain_name": str(name),
+            "level": level,
+            "is_parent": code in parents,
+            "opening_debit": round(v["opening"] if v["opening"] > 0 else 0.0, 2),
+            "opening_credit": round(-v["opening"] if v["opening"] < 0 else 0.0, 2),
+            "debit": round(v["debit"], 2),
+            "credit": round(v["credit"], 2),
+            "ending_debit": round(v["ending"] if v["ending"] > 0 else 0.0, 2),
+            "ending_credit": round(-v["ending"] if v["ending"] < 0 else 0.0, 2),
+        })
+
+    keys = ("opening_debit", "opening_credit", "debit", "credit",
+            "ending_debit", "ending_credit")
+    leaves = [r for r in rows if not r["is_parent"]]
+    totals = {k: round(sum(r[k] for r in leaves), 2) for k in keys}
+    return {"rows": rows, "totals": totals, "year": year,
+            "opening_source": opening_source(year, capital)}
+
+
 def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=None):
-    """统一入口。doc_type: 'balance' / 'income'
+    """统一入口。doc_type: 'balance' / 'income' / 'trial'
 
     先把各单据金额按币种/汇率换算为本位币，再按科目表生成报表。
     期初余额取该会计年度（year 缺省时按报表起止日期推断）的科目表期初。
@@ -298,7 +496,9 @@ def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=No
     if year is None:
         ref = date_from or date_to
         year = str(ref.year) if ref is not None else str(datetime.date.today().year)
-    if doc_type == "balance":
+    if doc_type == "trial":
+        report = build_trial_balance(docs, capital, year)
+    elif doc_type == "balance":
         report = build_balance_sheet(docs, capital, year)
     else:
         report = build_income_statement(docs, year)
@@ -325,7 +525,6 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
     report, docs = get_report(doc_type, date_from, date_to, capital)
     if not out_path:
         import os
-        from app import config
         out_path = os.path.join(config.DATA_DIR,
                                 f"informe_{doc_type}_{datetime.date.today().isoformat()}.pdf")
 
@@ -343,13 +542,51 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
     doc = SimpleDocTemplate(out_path, pagesize=A4, rightMargin=15*mm,
                             leftMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
     story = []
-    if doc_type == "balance":
+    if doc_type == "trial":
+        story.append(Paragraph("BALANCE DE COMPROBACIÓN 科目余额表", title_style))
+        story.append(Paragraph("（科目表 + 期初余额）" + span, h2))
+        if report.get("opening_source"):
+            story.append(Paragraph(f"期初来源：{report['opening_source']}", h2))
+        if report.get("base_currency"):
+            story.append(Paragraph(
+                f"币种：本位币 {config.currency_label(report['base_currency'])}", h2))
+        if report.get("currency_note"):
+            story.append(Paragraph(report["currency_note"], h2))
+        story.append(Spacer(1, 6*mm))
+
+        head = ["编码", "科目名称", "期初借方", "期初贷方",
+                "本期借方", "本期贷方", "期末借方", "期末贷方"]
+        data = [[Paragraph(f"<b>{h}</b>", cell) for h in head]]
+        for r in report["rows"]:
+            nm = r["name"]
+            if r.get("is_parent"):
+                nm = "<b>%s</b>" % nm
+            data.append([
+                Paragraph(r["code"], cell), Paragraph(nm, cell),
+                *[Paragraph(format_amount(r[k]), cell) for k in (
+                    "opening_debit", "opening_credit", "debit", "credit",
+                    "ending_debit", "ending_credit")]])
+        t = report.get("totals") or {}
+        data.append([Paragraph("<b>合计</b>", cell), Paragraph("<b>（末级科目）</b>", cell),
+                     *[Paragraph("<b>%s</b>" % format_amount(t.get(k, 0.0)), cell)
+                       for k in ("opening_debit", "opening_credit", "debit",
+                                 "credit", "ending_debit", "ending_credit")]])
+        tb = Table(data, colWidths=[22*mm, 56*mm, 17*mm, 17*mm, 17*mm, 17*mm,
+                                    17*mm, 17*mm], repeatRows=1)
+        tb.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f2f2f2")),
+        ]))
+        story.append(tb)
+    elif doc_type == "balance":
         story.append(Paragraph("BALANCE DE SITUACIÓN 资产负债表", title_style))
         story.append(Paragraph("（科目表 + 期初余额）" + span, h2))
         if report.get("opening_source"):
             story.append(Paragraph(f"期初来源：{report['opening_source']}", h2))
         if report.get("base_currency"):
-            story.append(Paragraph(f"币种：本位币 {report['base_currency']}", h2))
+            story.append(Paragraph(
+                f"币种：本位币 {config.currency_label(report['base_currency'])}", h2))
         if report.get("currency_note"):
             story.append(Paragraph(report["currency_note"], h2))
         story.append(Spacer(1, 6*mm))
@@ -388,7 +625,8 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
         if report.get("opening_source"):
             story.append(Paragraph(f"期初来源：{report['opening_source']}", h2))
         if report.get("base_currency"):
-            story.append(Paragraph(f"币种：本位币 {report['base_currency']}", h2))
+            story.append(Paragraph(
+                f"币种：本位币 {config.currency_label(report['base_currency'])}", h2))
         if report.get("currency_note"):
             story.append(Paragraph(report["currency_note"], h2))
         story.append(Spacer(1, 6*mm))

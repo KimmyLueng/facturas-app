@@ -24,7 +24,7 @@
     <label>币种
       <select name="currency">
         <option value=""></option>
-        {% for c in currencies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        {% for c in currencies %}<option value="{{ c }}">{{ c | cur }}</option>{% endfor %}
       </select>
     </label>
     <label>单据汇率<input name="exchange_rate" inputmode="decimal" placeholder="0"></label>
@@ -44,7 +44,7 @@
     <td>{{ d.doc_number or '' }}</td>
     <td>{{ '进货' if d.direction == 'compra' else '销售' }}</td>
     <td>{{ d.partner_name or '' }}</td>
-    <td>{{ d.currency or '' }}</td>
+    <td>{{ d.currency | cur }}</td>
     <td class="num">{{ d.total | money }}</td>
     <td>
       <form method="post" action="{{ url_for('documents_delete', doc_id=d.id) }}"

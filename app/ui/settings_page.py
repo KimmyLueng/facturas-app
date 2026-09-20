@@ -47,10 +47,11 @@ class SettingsPage:
         r0 = ttk.Frame(fx)
         r0.pack(fill="x", padx=10, pady=(10, 4))
         ttk.Label(r0, text="本位币（记账币种 Base）：").pack(side="left")
-        self.base_cur_var = tk.StringVar(
-            value=s.get("base_currency", config.DEFAULT_BASE_CURRENCY))
-        ttk.Combobox(r0, textvariable=self.base_cur_var, width=8,
-                     values=[c for c in CURRENCY_NAMES]).pack(side="left", padx=8)
+        self.base_cur_var = tk.StringVar(value=config.currency_label(
+            s.get("base_currency") or config.DEFAULT_BASE_CURRENCY))
+        ttk.Combobox(r0, textvariable=self.base_cur_var, width=18,
+                     values=[v for v in CURRENCY_NAMES.values()]).pack(
+            side="left", padx=8)
         ttk.Label(r0, text="所有单据金额将换算为本位币后入账。",
                   foreground="gray").pack(side="left", padx=8)
 
@@ -134,7 +135,8 @@ class SettingsPage:
         except ValueError:
             messagebox.showwarning("提示", "金额/汇率格式无效，请检查输入。", parent=self.frame)
             return
-        base_cur = self.base_cur_var.get().strip().upper()
+        # 下拉里是「中文名称（简称）」，存库仍用代码
+        base_cur = config.currency_code(self.base_cur_var.get())
         if not base_cur:
             base_cur = config.DEFAULT_BASE_CURRENCY
 
@@ -223,7 +225,8 @@ class SettingsPage:
     def refresh(self):
         s = load_settings()
         self.capital_var.set(str(s.get("capital_inicial", 0)))
-        self.base_cur_var.set(s.get("base_currency", config.DEFAULT_BASE_CURRENCY))
+        self.base_cur_var.set(config.currency_label(
+            s.get("base_currency") or config.DEFAULT_BASE_CURRENCY))
         self.usd_to_base_var.set(str(s.get("usd_to_base", 1.0)))
         self.usd_ves_var.set(str(s.get("usd_ves_official", 0.0) or 0.0))
         self.usd_cny_var.set(str(s.get("usd_cny", 0.0) or 0.0))

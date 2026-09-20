@@ -35,11 +35,11 @@ class SupplierSettlementPage:
             ("doc_number", "单号", 100),
             ("supply_amount_ves", "供货金额(委币)", 100),
             ("pay_method", "方式", 70),
-            ("pay_currency", "币种", 90),
+            ("pay_currency", "币种", 130),
             ("pay_bank", "银行转账", 90),
-            ("pay_cash_ves", "现金(委币)", 90),
-            ("pay_cash_usd", "现金(美元)", 90),
-            ("pay_cash_cny", "现金(人民币)", 95),
+            ("pay_cash_ves", f"现金 {config.currency_label('Bs')}", 130),
+            ("pay_cash_usd", f"现金 {config.currency_label('USD')}", 130),
+            ("pay_cash_cny", f"现金 {config.currency_label('CNY')}", 130),
             ("notes", "备注", 120),
         )
         self.tree = ttk.Treeview(list_frame, columns=[c[0] for c in cols],
@@ -106,17 +106,20 @@ class SupplierSettlementPage:
             row=2, column=5, sticky="w", padx=8, pady=3)
 
         # 第四行：付款方式、币种、支付金额
+        # 付款方式：科目表里货币资金的明细科目（同名子科目），可直接输入
         ttk.Label(form, text="付款方式").grid(row=3, column=0, sticky="w", pady=3)
-        self.vars["pay_method"] = tk.StringVar(value=config.PAY_METHOD_CARD)
-        ttk.Combobox(form, textvariable=self.vars["pay_method"],
-                     values=config.PAY_METHODS, width=12, state="readonly").grid(
-            row=3, column=1, sticky="w", padx=8, pady=3)
+        self.vars["pay_method"] = tk.StringVar(value=self._default_pay_method())
+        self.pay_method_cb = ttk.Combobox(
+            form, textvariable=self.vars["pay_method"],
+            values=self._pay_method_labels(), width=18)
+        self.pay_method_cb.grid(row=3, column=1, sticky="w", padx=8, pady=3)
 
         ttk.Label(form, text="币种").grid(row=3, column=2, sticky="w", pady=3, padx=(16, 0))
-        self.vars["pay_currency"] = tk.StringVar(value=config.PAY_CURRENCY_BS)
+        self.vars["pay_currency"] = tk.StringVar(value=config.currency_label(
+            config.PAY_CURRENCY_BS))
         ttk.Combobox(form, textvariable=self.vars["pay_currency"],
-                     values=config.PAY_CURRENCIES, width=14, state="readonly").grid(
-            row=3, column=3, sticky="w", padx=8, pady=3)
+                     values=config.pay_currency_labels(), width=16,
+                     state="readonly").grid(row=3, column=3, sticky="w", padx=8, pady=3)
 
         ttk.Label(form, text="支付金额").grid(row=3, column=4, sticky="w", pady=3, padx=(16, 0))
         self.vars["pay_amount"] = tk.StringVar(value="0")
@@ -157,6 +160,46 @@ class SupplierSettlementPage:
         opts = self._store_options()
         return opts[0] if opts else ""
 
+    # ---------------------------------------------- 付款方式（货币资金科目）
+    def _pay_method_options(self) -> list:
+        """付款方式下拉 = 科目表货币资金类明细科目。"""
+        try:
+            from app.accounting.reports import payment_account_options
+            return payment_account_options()
+        except Exception:  # noqa: BLE001
+            return [{"code": "", "name": m, "label": m}
+                    for m in config.PAY_METHODS]
+
+    def _pay_method_labels(self) -> list:
+        self.pay_options = self._pay_method_options()
+        return [o["label"] for o in self.pay_options]
+
+    def _default_pay_method(self) -> str:
+        labels = self._pay_method_labels()
+        return labels[0] if labels else ""
+
+    def _pay_method_name(self, label: str) -> str:
+        """下拉文本 → 入库文本（科目名称；手工输入时原样保存）。"""
+        text = (label or "").strip()
+        for opt in self.pay_options:
+            if opt["label"] == text:
+                return opt["name"]
+        return text
+
+    def _pay_method_label(self, name: str) -> str:
+        text = (name or "").strip()
+        if not text:
+            return self._default_pay_method()
+        for opt in self.pay_options:
+            if opt["name"] == text or opt["label"] == text:
+                return opt["label"]
+        return text
+
+    def _reload_pay_methods(self):
+        labels = self._pay_method_labels()
+        if getattr(self, "pay_method_cb", None) is not None:
+            self.pay_method_cb["values"] = labels
+
     def _reload_store_options(self, select=None):
         opts = [""] + self._store_options()
         if self.store_cb:
@@ -180,6 +223,7 @@ class SupplierSettlementPage:
     def refresh(self):
         self.tree.delete(*self.tree.get_children())
         self._reload_store_options()
+        self._reload_pay_methods()
         for r in database.list_supplier_settlements():
             self.tree.insert(
                 "", "end", iid=str(r["id"]),
@@ -191,7 +235,8 @@ class SupplierSettlementPage:
                     r["doc_number"],
                     format_amount(r["supply_amount_ves"]),
                     r["pay_method"],
-                    r["pay_currency"],
+                    config.currency_label(r["pay_currency"])
+                    or r["pay_currency"] or "",
                     format_amount(r["pay_bank"]),
                     format_amount(r["pay_cash_ves"]),
                     format_amount(r["pay_cash_usd"]),
@@ -213,8 +258,10 @@ class SupplierSettlementPage:
         self.vars["summary"].set(rec["summary"] or "")
         self.vars["doc_number"].set(rec["doc_number"] or "")
         self.vars["supply_amount_ves"].set(self._fmt_num(rec["supply_amount_ves"]))
-        self.vars["pay_method"].set(rec["pay_method"] or config.PAY_METHOD_CARD)
-        self.vars["pay_currency"].set(rec["pay_currency"] or config.PAY_CURRENCY_BS)
+        self.vars["pay_method"].set(self._pay_method_label(rec["pay_method"]))
+        self.vars["pay_currency"].set(
+            config.currency_label(rec["pay_currency"])
+            or config.currency_label(config.PAY_CURRENCY_BS))
         self.vars["notes"].set(rec["notes"] or "")
         # 支付金额回填：根据已保存的列反推（只有一列非零）
         total = (rec["pay_bank"] + rec["pay_cash_ves"]
@@ -236,8 +283,8 @@ class SupplierSettlementPage:
         d = self.vars["date"].get().strip()
         rec["date"] = d if d else date_iso(datetime.date.today())
         rec["supply_amount_ves"] = parse_amount(self.vars["supply_amount_ves"].get())
-        rec["pay_method"] = self.vars["pay_method"].get()
-        rec["pay_currency"] = self.vars["pay_currency"].get()
+        rec["pay_method"] = self._pay_method_name(self.vars["pay_method"].get())
+        rec["pay_currency"] = config.currency_code(self.vars["pay_currency"].get())
         rec["pay_amount"] = parse_amount(self.vars["pay_amount"].get())
         return rec
 
@@ -260,8 +307,9 @@ class SupplierSettlementPage:
             self.vars[k].set("")
         self.vars["supply_amount_ves"].set("0")
         self.vars["pay_amount"].set("0")
-        self.vars["pay_method"].set(config.PAY_METHOD_CARD)
-        self.vars["pay_currency"].set(config.PAY_CURRENCY_BS)
+        self.vars["pay_method"].set(self._default_pay_method())
+        self.vars["pay_currency"].set(
+            config.currency_label(config.PAY_CURRENCY_BS))
         self.vars["store"].set(self._store_default())
         self.tree.selection_remove(self.tree.selection())
         self.status.config(text="", foreground="gray")

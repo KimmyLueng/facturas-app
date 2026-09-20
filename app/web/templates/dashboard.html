@@ -38,7 +38,7 @@
     <td>{{ r.summary or '' }}</td>
     <td>{{ r.category_label or r.category or '' }}</td>
     <td>{{ r.method or '' }}</td>
-    <td>{{ r.currency or '' }}</td>
+    <td>{{ r.currency | cur }}</td>
     <td class="num">{{ r.amount | money }}</td>
   </tr>
   {% else %}

@@ -9,7 +9,7 @@
     <label>本位币
       <select name="base_currency">
         {% for c in currencies %}
-        <option value="{{ c }}" {{ 'selected' if s.base_currency == c }}>{{ c }}</option>
+        <option value="{{ c }}" {{ 'selected' if s.base_currency == c }}>{{ c | cur }}</option>
         {% endfor %}
       </select>
     </label>

@@ -17,19 +17,12 @@ from typing import Any
 
 from app import config
 
-# 常用币种代码与名称（VES 与 Bs 是同一种货币，统一显示为 Bs）
+# 常用币种代码与名称：全项目统一为「中文名称（简称）」
+# （VES 与 Bs 是同一种货币，统一显示为 玻利瓦尔（Bs））
 CURRENCY_NAMES = {
-    "EUR": "欧元 EUR",
-    "USD": "美元 USD",
-    "CNY": "人民币 CNY",
-    "Bs": "玻利瓦尔 Bs（委内瑞拉）",
-    "VES": "玻利瓦尔 Bs（委内瑞拉，VES 为 ISO 代码）",
-    "MXN": "墨西哥比索 MXN",
-    "ARS": "阿根廷比索 ARS",
-    "COP": "哥伦比亚比索 COP",
-    "PEN": "秘鲁索尔 PEN",
-    "CLP": "智利比索 CLP",
-    "USDT": "USDT 泰达币（稳定币，1:1 美元）",
+    code: config.currency_label(code)
+    for code in ("EUR", "USD", "CNY", "Bs", "USDT",
+                 "MXN", "ARS", "COP", "PEN", "CLP")
 }
 
 # 委内瑞拉官方/备用数据源（优先官方 dolarapi，失败后使用通用汇率 API）

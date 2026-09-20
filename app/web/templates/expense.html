@@ -14,17 +14,17 @@
       </select>
     </label>
     <label>新类别（选填，可直接新增）<input name="category_new" placeholder="如：加班餐费"></label>
-    <label>付款方式
+    <label>付款方式（货币资金科目）
       <select name="method">
         {% for m in methods %}
-        <option value="{{ m }}" {{ 'selected' if edit and edit.method == m }}>{{ m }}</option>
+        <option value="{{ m.name }}" {{ 'selected' if edit and edit.method == m.name }}>{{ m.label }}</option>
         {% endfor %}
       </select>
     </label>
     <label>币种
       <select name="currency">
         {% for c in currencies %}
-        <option value="{{ c }}" {{ 'selected' if edit and edit.currency == c }}>{{ c }}</option>
+        <option value="{{ c.code }}" {{ 'selected' if edit and edit.currency == c.code }}>{{ c.label }}</option>
         {% endfor %}
       </select>
     </label>
@@ -51,7 +51,7 @@
     <td>{{ r.summary }}</td>
     <td>{{ r.category_label or r.category }}</td>
     <td>{{ r.method }}</td>
-    <td>{{ r.currency }}</td>
+    <td>{{ r.currency | cur }}</td>
     <td class="num">{{ r.amount | money }}</td>
     <td>{{ r.notes }}</td>
     <td>

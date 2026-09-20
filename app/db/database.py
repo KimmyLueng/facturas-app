@@ -302,12 +302,12 @@ def _migrate_expense_items(conn):
 
 
 def _normalize_currency_columns(conn):
-    """把历史库里玻利瓦尔的各种写法统一成 Bs（VES / 委内瑞拉玻利瓦尔 / Bs.S …）。
+    """把历史库里币种的各种写法统一成标准代码。
 
-    只需要跑一次（幂等）：改完后再查不到旧值，UPDATE 影响 0 行。
+    - 玻利瓦尔：VES / 委内瑞拉玻利瓦尔 / Bs.S … → Bs
+    - 旧版本把中文名直接存库：美元 / 人民币 / USDT 泰达币 → USD / CNY / USDT
+    幂等：改完后再跑一次 UPDATE 影响 0 行。
     """
-    legacy = ["VES", "VED", "VEF", "BS", "BSS", "BSF", "Bs.S", "BsF",
-              "BOLIVAR", "BOLÍVAR", "委内瑞拉玻利瓦尔", "玻利瓦尔"]
     targets = (("documents", "currency"), ("daily_income_rows", "currency"),
                ("daily_expense", "pay_currency"),
                ("daily_expense_items", "currency"),
@@ -326,11 +326,18 @@ def _normalize_currency_columns(conn):
             continue
         if col not in cols:
             continue
-        ph = ",".join("?" * len(legacy))
-        conn.execute(
-            f"UPDATE {table} SET {col}=? "
-            f"WHERE {col} IS NOT NULL AND TRIM({col}) IN ({ph})",
-            [config.CURRENCY_BS] + legacy)
+        try:
+            rows = conn.execute(
+                f"SELECT rowid AS rid, {col} AS v FROM {table} "
+                f"WHERE {col} IS NOT NULL AND TRIM({col}) <> ''").fetchall()
+        except sqlite3.Error:
+            continue
+        for r in rows:
+            old = str(r["v"] or "").strip()
+            new = config.normalize_currency(old)
+            if new and new != old:
+                conn.execute(f"UPDATE {table} SET {col}=? WHERE rowid=?",
+                             (new, r["rid"]))
     conn.commit()
 
 
@@ -1291,12 +1298,22 @@ def delete_daily_expense_item(rec_id: int):
 # ------------------------------------------------------------------ supplier_settlements
 
 def _calc_supplier_pay(rec: dict):
-    """根据方式/币种把支付金额归集到对应列。"""
+    """根据方式/币种把支付金额归集到对应列。
+
+    付款方式取科目表里货币资金的明细科目（如 库存现金 / 基本户），
+    按科目判定银行还是现金；兼容旧数据的「银行卡」「现金」文本。
+    """
     amount = float(rec.get("pay_amount", 0) or 0)
     method = rec.get("pay_method", "")
     currency = config.normalize_currency(rec.get("pay_currency", ""))
-    bank = amount if method == config.PAY_METHOD_CARD else 0
-    cash = method == config.PAY_METHOD_CASH
+    try:
+        from app.accounting.reports import payment_channel
+        channel = payment_channel(method)
+    except Exception:  # noqa: BLE001  科目表不可用时回退旧规则
+        channel = ("bank" if method == config.PAY_METHOD_CARD else
+                   "cash" if method == config.PAY_METHOD_CASH else "")
+    bank = amount if channel == "bank" else 0
+    cash = channel == "cash"
     cash_ves = amount if (cash and currency == config.PAY_CURRENCY_BS) else 0
     cash_usd = amount if (cash and currency == config.PAY_CURRENCY_USD) else 0
     cash_cny = amount if (cash and currency == config.PAY_CURRENCY_CNY) else 0
