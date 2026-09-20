@@ -56,22 +56,12 @@ def _today() -> str:
 
 
 def _income_rows(limit: int = None) -> list:
-    """把「日报记录 + 明细行」展开成一笔一行，供列表展示。"""
-    out = []
-    for rec in database.list_daily_income_full():
-        for row in rec.get("rows", []) or []:
-            out.append({
-                "row_id": row.get("id"),
-                "date": rec.get("date") or "",
-                "notes": rec.get("notes") or "",
-                "store": row.get("store") or "",
-                "source": row.get("source") or "",
-                "currency": row.get("currency") or "",
-                "currency_label": config.income_currency_label(row.get("currency")),
-                "amount": float(row.get("amount") or 0),
-            })
+    """把「日报记录 + 明细行」展开成一笔一行，供列表展示（最新在前）。"""
+    out = database.list_daily_income_rows(limit=limit)
+    for r in out:
+        r["currency_label"] = config.income_currency_label(r.get("currency"))
     out.reverse()
-    return out[:limit] if limit else out
+    return out
 
 
 # ------------------------------------------------------------------ 概览
@@ -101,25 +91,38 @@ def dashboard():
 def income():
     if request.method == "POST":
         try:
-            database.save_daily_income({
-                "date": request.form.get("date") or _today(),
-                "notes": request.form.get("notes", ""),
-                "rows": [{
-                    "store": request.form.get("store", ""),
-                    "source": request.form.get("source", ""),
-                    "currency": request.form.get("currency", ""),
-                    "amount": parse_amount(request.form.get("amount")),
-                }],
-            })
+            date = request.form.get("date") or _today()
+            notes = request.form.get("notes", "")
+            row = {
+                "store": request.form.get("store", ""),
+                "source": request.form.get("source", ""),
+                "currency": request.form.get("currency", ""),
+                "amount": parse_amount(request.form.get("amount")),
+            }
+            row_id = request.form.get("row_id", type=int)
+            if row_id:      # 再编辑：只更新这一笔，同一天其他笔保持不变
+                before = database.get_daily_income_row(row_id) or {}
+                income_id = database.get_or_create_daily_income(date, notes)
+                database.update_daily_income_row(row_id, row)
+                if before.get("income_id") == income_id:
+                    database.update_daily_income_header(income_id, date, notes)
+                else:       # 日期改了：把这笔移到那一天的记录里
+                    database.move_daily_income_row(row_id, income_id)
+                return _go("income", "已更新该笔收入")
+            database.save_daily_income(
+                {"date": date, "notes": notes, "rows": [row]})
             return _go("income", "已保存一笔收入")
         except Exception as e:  # noqa: BLE001
             return _go("income", str(e), False)
+    edit_id = request.args.get("edit", type=int)
+    edit = database.get_daily_income_row(edit_id) if edit_id else None
     return render_template(
         "income.html", active="income", rows=_income_rows(),
         today=_today(), stores=settings_mod.get_stores(),
         sources=config.INCOME_SOURCES,
         currencies=config.INCOME_CURRENCY_LABELS,
-        source_currencies=config.INCOME_SOURCE_CURRENCIES)
+        source_currencies=config.INCOME_SOURCE_CURRENCIES,
+        edit=edit)
 
 
 @app.post("/income/delete/<int:row_id>")
@@ -133,26 +136,40 @@ def income_delete(row_id):
 def expense():
     if request.method == "POST":
         try:
-            database.save_daily_expense_item({
+            # 费用类别：下拉选择，或手工输入新类别（自动登记到设置）
+            category = request.form.get("category", "")
+            new_category = (request.form.get("category_new") or "").strip()
+            if new_category:
+                category = settings_mod.add_expense_category(new_category)
+            elif category:
+                category = settings_mod.add_expense_category(category)
+            rec = {
                 "date": request.form.get("date") or _today(),
                 "summary": request.form.get("summary", ""),
-                "category": request.form.get("category", ""),
+                "category": category,
                 "method": request.form.get("method", ""),
                 "currency": request.form.get("currency", ""),
                 "amount": parse_amount(request.form.get("amount")),
                 "notes": request.form.get("notes", ""),
-            })
-            return _go("expense", "已保存一笔支出")
+            }
+            rec_id = request.form.get("id", type=int)
+            if rec_id:
+                rec["id"] = rec_id
+            database.save_daily_expense_item(rec)
+            return _go("expense", "已更新该笔支出" if rec_id else "已保存一笔支出")
         except Exception as e:  # noqa: BLE001
             return _go("expense", str(e), False)
     rows = database.list_daily_expense_items()
     rows = list(reversed(rows))
     for r in rows:
         r["category_label"] = database.expense_category_label(r.get("category"))
+    edit_id = request.args.get("edit", type=int)
+    edit = database.get_daily_expense_item(edit_id) if edit_id else None
     return render_template(
         "expense.html", active="expense", rows=rows, today=_today(),
-        categories=config.EXPENSE_CATEGORIES,
-        methods=config.PAY_METHODS, currencies=config.PAY_CURRENCIES)
+        categories=settings_mod.get_expense_categories(),
+        methods=config.PAY_METHODS, currencies=config.PAY_CURRENCIES,
+        edit=edit)
 
 
 @app.post("/expense/delete/<int:rec_id>")

@@ -1,13 +1,16 @@
 """店铺支出日报表。
 
 - 一笔一行：同一天可录入不同币种、不同付款方式的多笔支出。
-- 费用类别、付款方式、币种均为下拉菜单。
+- 列表一行一笔；点击某一行即把该笔支出回填到表单，修改后保存即可（再编辑）。
+- 费用类别：内置科目 + 手工新增的自定义类别（下拉可直接选择，
+  下拉框也可直接输入新类别名，保存时自动登记；或点「＋ 新增类别」）。
+- 付款方式、币种为下拉菜单。
 """
 import datetime
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 
-from app import config
+from app import config, settings
 from app.db import database
 from app.utils import format_amount, parse_amount, date_iso
 
@@ -18,9 +21,35 @@ class DailyExpensePage:
         self.frame = None
         self.vars = {}
         self.current_id = None
-        # 费用类别：界面显示名称 ←→ 数据库 key
-        self._label_to_key = {label: key for key, label in config.EXPENSE_CATEGORIES}
-        self._key_to_label = {key: label for key, label in config.EXPENSE_CATEGORIES}
+        self.cat_combo = None
+        # 费用类别：界面显示名称 ←→ 数据库 key（含设置里自定义的类别）
+        self._reload_categories()
+
+    # ------------------------------------------------------ 费用类别
+    def _reload_categories(self):
+        """从设置读取费用类别（内置 + 自定义），刷新映射与下拉内容。"""
+        cats = settings.get_expense_categories()
+        self.categories = cats
+        self._label_to_key = {label: key for key, label in cats}
+        self._key_to_label = {key: label for key, label in cats}
+        if self.cat_combo is not None:
+            self.cat_combo["values"] = [label for _k, label in cats]
+
+    def _default_category(self) -> str:
+        cats = self.categories or list(config.EXPENSE_CATEGORIES)
+        return cats[0][1]
+
+    def _resolve_category_key(self, label: str) -> str:
+        """显示名称 → 数据库 key；手工输入的新类别自动登记到设置。"""
+        label = (label or "").strip()
+        if not label:
+            return ""
+        key = self._label_to_key.get(label)
+        if key:
+            return key
+        key = settings.add_expense_category(label)
+        self._reload_categories()
+        return key
 
     def build(self):
         f = self.frame
@@ -70,12 +99,11 @@ class DailyExpensePage:
             row=0, column=3, columnspan=3, sticky="w", padx=8)
 
         ttk.Label(form, text="费用类别").grid(row=1, column=0, sticky="w", pady=3)
-        self.vars["category"] = tk.StringVar(
-            value=self._key_to_label[config.EXPENSE_CATEGORIES[0][0]])
-        ttk.Combobox(form, textvariable=self.vars["category"], state="readonly",
-                     width=14,
-                     values=[label for _k, label in config.EXPENSE_CATEGORIES]).grid(
-            row=1, column=1, sticky="w", padx=8, pady=3)
+        self.vars["category"] = tk.StringVar(value=self._default_category())
+        self.cat_combo = ttk.Combobox(
+            form, textvariable=self.vars["category"], width=14,
+            values=[label for _k, label in self.categories])
+        self.cat_combo.grid(row=1, column=1, sticky="w", padx=8, pady=3)
 
         ttk.Label(form, text="付款方式").grid(row=1, column=2, sticky="w", padx=(14, 0))
         self.vars["method"] = tk.StringVar(value=config.PAY_METHOD_CARD)
@@ -104,14 +132,33 @@ class DailyExpensePage:
         ttk.Button(btn_frame, text="保存", command=self._save).pack(side="left", padx=4)
         ttk.Button(btn_frame, text="新增", command=self._new).pack(side="left", padx=4)
         ttk.Button(btn_frame, text="删除选中", command=self._delete).pack(side="left", padx=4)
+        ttk.Button(btn_frame, text="＋ 新增类别",
+                   command=self._add_category).pack(side="left", padx=4)
+        ttk.Label(btn_frame, text="（点击列表中的一行即可再编辑）",
+                  foreground="gray").pack(side="left", padx=8)
 
         self.status = ttk.Label(form, text="", foreground="gray")
         self.status.grid(row=4, column=0, columnspan=6, sticky="w")
 
         self.refresh()
 
+    # ------------------------------------------------------ 新增费用类别
+    def _add_category(self):
+        """手工新增一个费用类别（保存到设置，下拉立即可用）。"""
+        name = simpledialog.askstring(
+            "新增费用类别", "类别名称（如：加班餐费、维修费）：",
+            parent=self.frame)
+        if not name or not name.strip():
+            return
+        key = settings.add_expense_category(name)
+        self._reload_categories()
+        self.vars["category"].set(self._key_to_label.get(key, name.strip()))
+        self.status.config(text=f"已新增费用类别：{self._key_to_label.get(key, name)}",
+                           foreground="green")
+
     # ------------------------------------------------------------ 数据
     def refresh(self):
+        self._reload_categories()
         self.tree.delete(*self.tree.get_children())
         for r in database.list_daily_expense_items():
             self.tree.insert("", "end", iid=str(r["id"]), values=(
@@ -124,6 +171,7 @@ class DailyExpensePage:
                 r["notes"] or ""))
 
     def _on_select(self, event):
+        """选中列表中的一行 → 回填表单，进入再编辑状态。"""
         sel = self.tree.selection()
         if not sel:
             return
@@ -139,6 +187,11 @@ class DailyExpensePage:
         self.vars["currency"].set(rec["currency"] or config.PAY_CURRENCY_BS)
         self.vars["amount"].set(f"{float(rec.get('amount') or 0):.2f}")
         self.vars["notes"].set(rec["notes"] or "")
+        self.status.config(
+            text=f"正在编辑：{rec.get('date') or ''} "
+                 f"{database.expense_category_label(rec.get('category'))}"
+                 f"（改完点「保存」）",
+            foreground="#1f6feb")
 
     def _collect(self) -> dict:
         label = self.vars["category"].get()
@@ -146,7 +199,7 @@ class DailyExpensePage:
             "id": self.current_id,
             "date": self.vars["date"].get().strip() or date_iso(datetime.date.today()),
             "summary": self.vars["summary"].get(),
-            "category": self._label_to_key.get(label, label),
+            "category": self._resolve_category_key(label),
             "method": self.vars["method"].get(),
             "currency": self.vars["currency"].get(),
             "amount": parse_amount(self.vars["amount"].get()),
@@ -155,13 +208,17 @@ class DailyExpensePage:
 
     def _save(self):
         try:
+            editing = bool(self.current_id)
             rec = self._collect()
             if not rec["amount"]:
                 messagebox.showwarning("提示", "请输入金额。", parent=self.frame)
                 return
+            if not rec["category"]:
+                messagebox.showwarning("提示", "请选择或输入费用类别。", parent=self.frame)
+                return
             database.save_daily_expense_item(rec)
-            self.status.config(text="保存成功", foreground="green")
-            self.current_id = None
+            self.status.config(text="已更新该笔支出" if editing else "已保存一笔支出",
+                               foreground="green")
             self.refresh()
             self._new()
         except Exception as e:  # noqa: BLE001
@@ -171,7 +228,7 @@ class DailyExpensePage:
         self.current_id = None
         self.vars["date"].set(date_iso(datetime.date.today()))
         self.vars["summary"].set("")
-        self.vars["category"].set(self._key_to_label[config.EXPENSE_CATEGORIES[0][0]])
+        self.vars["category"].set(self._default_category())
         self.vars["method"].set(config.PAY_METHOD_CARD)
         self.vars["currency"].set(config.PAY_CURRENCY_BS)
         self.vars["amount"].set("0")

@@ -2,37 +2,51 @@
 {% block content %}
 <h2>店铺支出日报</h2>
 <form method="post" class="card">
+  {% if edit %}<input type="hidden" name="id" value="{{ edit.id }}">{% endif %}
   <div class="form-row">
-    <label>日期<input type="date" name="date" value="{{ today }}" required></label>
-    <label>摘要<input name="summary" placeholder="选填"></label>
+    <label>日期<input type="date" name="date" value="{{ edit.date if edit else today }}" required></label>
+    <label>摘要<input name="summary" placeholder="选填" value="{{ edit.summary if edit else '' }}"></label>
     <label>费用类别
       <select name="category">
-        {% for key, label in categories %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+        {% for key, label in categories %}
+        <option value="{{ key }}" {{ 'selected' if edit and edit.category == key }}>{{ label }}</option>
+        {% endfor %}
       </select>
     </label>
+    <label>新类别（选填，可直接新增）<input name="category_new" placeholder="如：加班餐费"></label>
     <label>付款方式
       <select name="method">
-        {% for m in methods %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+        {% for m in methods %}
+        <option value="{{ m }}" {{ 'selected' if edit and edit.method == m }}>{{ m }}</option>
+        {% endfor %}
       </select>
     </label>
     <label>币种
       <select name="currency">
-        {% for c in currencies %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+        {% for c in currencies %}
+        <option value="{{ c }}" {{ 'selected' if edit and edit.currency == c }}>{{ c }}</option>
+        {% endfor %}
       </select>
     </label>
-    <label>金额<input name="amount" inputmode="decimal" placeholder="0.00" required></label>
-    <label>备注<input name="notes" placeholder="选填"></label>
+    <label>金额<input name="amount" inputmode="decimal" placeholder="0.00"
+             value="{{ '%.2f' % edit.amount if edit else '' }}" required></label>
+    <label>备注<input name="notes" placeholder="选填" value="{{ edit.notes if edit else '' }}"></label>
   </div>
-  <button type="submit">保存一笔</button>
-  <span class="hint">同一天可录入多笔：不同类别 / 不同付款方式 / 不同币种各存一笔。</span>
+  <button type="submit">{{ '保存修改' if edit else '保存一笔' }}</button>
+  {% if edit %}<a class="btn secondary" href="{{ url_for('expense') }}">取消编辑</a>{% endif %}
+  <span class="hint">
+    {% if edit %}正在编辑已录入的记录，保存后更新这一笔。
+    {% else %}同一天可录入多笔：不同类别 / 不同付款方式 / 不同币种各存一笔；
+    「新类别」里填写的名称会自动加入费用类别下拉。{% endif %}
+  </span>
 </form>
 
-<h3>支出明细（一笔一行）</h3>
+<h3>支出明细（一笔一行，点「编辑」可修改）</h3>
 <div class="table-wrap">
 <table>
   <tr><th>日期</th><th>摘要</th><th>类别</th><th>付款方式</th><th>币种</th><th class="num">金额</th><th>备注</th><th></th></tr>
   {% for r in rows %}
-  <tr>
+  <tr {% if edit and edit.id == r.id %}class="section"{% endif %}>
     <td>{{ r.date }}</td>
     <td>{{ r.summary }}</td>
     <td>{{ r.category_label or r.category }}</td>
@@ -41,7 +55,10 @@
     <td class="num">{{ r.amount | money }}</td>
     <td>{{ r.notes }}</td>
     <td>
+      <a class="btn secondary" style="padding:4px 10px;font-size:13px"
+         href="{{ url_for('expense', edit=r.id) }}">编辑</a>
       <form method="post" action="{{ url_for('expense_delete', rec_id=r.id) }}"
+            style="display:inline"
             onsubmit="return confirm('删除该笔支出？');">
         <button type="submit" class="link">删除</button>
       </form>

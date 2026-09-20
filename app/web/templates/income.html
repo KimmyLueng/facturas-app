@@ -2,32 +2,42 @@
 {% block content %}
 <h2>店铺收入日报</h2>
 <form method="post" class="card">
+  {% if edit %}<input type="hidden" name="row_id" value="{{ edit.row_id }}">{% endif %}
   <div class="form-row">
-    <label>日期<input type="date" name="date" value="{{ today }}" required></label>
+    <label>日期<input type="date" name="date" value="{{ edit.date if edit else today }}" required></label>
     <label>分店
       <select name="store">
-        {% for s in stores %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        {% for s in stores %}
+        <option value="{{ s }}" {{ 'selected' if edit and edit.store == s }}>{{ s }}</option>
+        {% endfor %}
       </select>
     </label>
     <label>支付方式
       <select name="source" id="source">
-        {% for s in sources %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        {% for s in sources %}
+        <option value="{{ s }}" {{ 'selected' if edit and edit.source == s }}>{{ s }}</option>
+        {% endfor %}
       </select>
     </label>
     <label>币种<select name="currency" id="currency"></select></label>
-    <label>金额<input name="amount" inputmode="decimal" placeholder="0.00" required></label>
-    <label>备注<input name="notes" placeholder="选填"></label>
+    <label>金额<input name="amount" inputmode="decimal" placeholder="0.00"
+             value="{{ '%.2f' % edit.amount if edit else '' }}" required></label>
+    <label>备注<input name="notes" placeholder="选填" value="{{ edit.notes if edit else '' }}"></label>
   </div>
-  <button type="submit">保存一笔</button>
-  <span class="hint">同一天可分多次录入：不同支付方式 / 不同币种各存一笔。</span>
+  <button type="submit">{{ '保存修改' if edit else '保存一笔' }}</button>
+  {% if edit %}<a class="btn secondary" href="{{ url_for('income') }}">取消编辑</a>{% endif %}
+  <span class="hint">
+    {% if edit %}正在编辑已录入的记录，保存后仅更新这一笔。
+    {% else %}同一天可分多次录入：不同支付方式 / 不同币种各存一笔。{% endif %}
+  </span>
 </form>
 
-<h3>收入明细（一笔一行）</h3>
+<h3>收入明细（一笔一行，点「编辑」可修改）</h3>
 <div class="table-wrap">
 <table>
   <tr><th>日期</th><th>分店</th><th>支付方式</th><th>币种</th><th class="num">金额</th><th>备注</th><th></th></tr>
   {% for r in rows %}
-  <tr>
+  <tr {% if edit and edit.row_id == r.row_id %}class="section"{% endif %}>
     <td>{{ r.date }}</td>
     <td>{{ r.store }}</td>
     <td>{{ r.source }}</td>
@@ -35,7 +45,10 @@
     <td class="num">{{ r.amount | money }}</td>
     <td>{{ r.notes }}</td>
     <td>
+      <a class="btn secondary" style="padding:4px 10px;font-size:13px"
+         href="{{ url_for('income', edit=r.row_id) }}">编辑</a>
       <form method="post" action="{{ url_for('income_delete', row_id=r.row_id) }}"
+            style="display:inline"
             onsubmit="return confirm('删除该笔收入？');">
         <button type="submit" class="link">删除</button>
       </form>
@@ -50,11 +63,12 @@
 <script>
 const SOURCE_CUR = {{ source_currencies | tojson }};
 const CUR_LABEL = {{ currencies | tojson }};
+let EDIT_CUR = {{ (edit.currency if edit else '') | tojson }};
 function fillCurrencies() {
   const src = document.getElementById('source').value;
   const sel = document.getElementById('currency');
   const list = SOURCE_CUR[src] || [];
-  const cur = sel.value;
+  const cur = EDIT_CUR || sel.value;
   sel.innerHTML = '';
   list.forEach(function (c) {
     const o = document.createElement('option');
@@ -63,6 +77,7 @@ function fillCurrencies() {
     sel.appendChild(o);
   });
   if (list.indexOf(cur) >= 0) sel.value = cur;
+  EDIT_CUR = '';
 }
 document.getElementById('source').addEventListener('change', fillCurrencies);
 fillCurrencies();

@@ -15,6 +15,7 @@ DEFAULTS = {
     "usd_ves_date": "",          # 官方汇率更新时间
     "usd_cny": 0.0,              # 美元兑人民币：1 USD = X CNY（可在线更新）
     "stores": list(config.DEFAULT_STORES),   # 分店列表
+    "expense_categories": [],    # 自定义费用类别（支出日报里手工新增的名称）
     # ---- 数据同步（WebDAV）----
     "webdav": {},        # 服务器配置，结构见 app/sync/manager.py: DEFAULT_WEBDAV
     "sync_state": {},    # 同步基线：上次同步的本地/云端哈希、时间与结果
@@ -58,3 +59,45 @@ def add_store(name: str) -> bool:
     s["stores"] = stores
     save_settings(s)
     return True
+
+
+# ------------------------------------------------------- 费用类别（支出日报）
+def get_expense_categories() -> list:
+    """费用类别 [(key, label)]：内置科目 + 设置里手工新增的自定义类别。
+
+    自定义类别以名称同时作为 key 存入该列（如「加班餐费」）。
+    """
+    out = list(config.EXPENSE_CATEGORIES)
+    seen = {k for k, _l in out} | {label for _k, label in out}
+    for name in load_settings().get("expense_categories") or []:
+        name = str(name).strip()
+        if name and name not in seen:
+            out.append((name, name))
+            seen.add(name)
+    return out
+
+
+def expense_category_keys() -> set:
+    """全部已知费用类别 key 的集合。"""
+    return {k for k, _l in get_expense_categories()}
+
+
+def add_expense_category(label: str) -> str:
+    """新增自定义费用类别并持久化，返回其 key。
+
+    内置类别直接返回对应 key；自定义类别 key 即名称本身。
+    """
+    name = (label or "").strip()
+    if not name:
+        return ""
+    for key, builtin_label in config.EXPENSE_CATEGORIES:
+        if name in (key, builtin_label):
+            return key
+    s = load_settings()
+    customs = [str(x).strip() for x in (s.get("expense_categories") or [])
+               if str(x).strip()]
+    if name not in customs:
+        customs.append(name)
+        s["expense_categories"] = customs
+        save_settings(s)
+    return name

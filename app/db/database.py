@@ -6,6 +6,7 @@ import os
 import sys
 
 from app import config
+from app import settings as settings_mod
 
 
 def get_conn() -> sqlite3.Connection:
@@ -906,6 +907,128 @@ def delete_daily_income(rec_id: int):
         conn.close()
 
 
+def get_or_create_daily_income(date, notes: str = "") -> int:
+    """按日期取当日日报表头 id，没有则新建（用于追加明细行）。"""
+    d = _date_or_iso(date)
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT id FROM daily_income WHERE date = ? ORDER BY id DESC LIMIT 1",
+            (d,)).fetchone()
+        if row:
+            return row["id"]
+        cur = conn.execute("INSERT INTO daily_income (date, notes) VALUES (?,?)",
+                           (d, notes))
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def update_daily_income_header(income_id: int, date, notes: str = ""):
+    """只更新日报表头（日期 / 备注），不影响已有明细行。"""
+    conn = get_conn()
+    try:
+        conn.execute("UPDATE daily_income SET date=?, notes=? WHERE id=?",
+                     (_date_or_iso(date), notes, income_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def add_daily_income_row(income_id: int, row: dict) -> int:
+    """在指定日报下追加一条明细行（分店 × 支付方式 × 币种 × 金额）。"""
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            """INSERT INTO daily_income_rows (income_id, store, source, currency, amount)
+               VALUES (?,?,?,?,?)""",
+            (income_id, (row.get("store") or "").strip(), row.get("source", ""),
+             config.normalize_currency(row.get("currency") or config.INCOME_CUR_BS),
+             float(row.get("amount") or 0)))
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def update_daily_income_row(row_id: int, row: dict) -> int:
+    """更新一条收入明细行，返回其所属日报 id（行不存在返回 0）。"""
+    conn = get_conn()
+    try:
+        cur = conn.execute("SELECT income_id FROM daily_income_rows WHERE id = ?",
+                           (row_id,)).fetchone()
+        if not cur:
+            return 0
+        conn.execute(
+            """UPDATE daily_income_rows
+               SET store=?, source=?, currency=?, amount=? WHERE id=?""",
+            ((row.get("store") or "").strip(), row.get("source", ""),
+             config.normalize_currency(row.get("currency") or config.INCOME_CUR_BS),
+             float(row.get("amount") or 0), row_id))
+        conn.commit()
+        return cur["income_id"]
+    finally:
+        conn.close()
+
+
+def move_daily_income_row(row_id: int, income_id: int) -> int:
+    """把一条收入明细行改挂到另一个日报表头（改日期时用）。
+
+    原表头若已无任何明细行则一并删除。
+    """
+    conn = get_conn()
+    try:
+        old = conn.execute("SELECT income_id FROM daily_income_rows WHERE id = ?",
+                           (row_id,)).fetchone()
+        conn.execute("UPDATE daily_income_rows SET income_id=? WHERE id=?",
+                     (income_id, row_id))
+        if old and old["income_id"] != income_id:
+            left = conn.execute(
+                "SELECT COUNT(*) AS c FROM daily_income_rows WHERE income_id = ?",
+                (old["income_id"],)).fetchone()["c"]
+            if not left:
+                conn.execute("DELETE FROM daily_income WHERE id = ?",
+                             (old["income_id"],))
+        conn.commit()
+        return income_id
+    finally:
+        conn.close()
+
+
+def get_daily_income_row(row_id: int) -> dict:
+    """按明细行 id 取一笔收入（含所属日报的日期与备注），供再编辑使用。"""
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            """SELECT r.id AS row_id, r.income_id, r.store, r.source, r.currency,
+                      r.amount, i.date AS date, i.notes AS notes
+               FROM daily_income_rows r
+               JOIN daily_income i ON i.id = r.income_id
+               WHERE r.id = ?""", (row_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def list_daily_income_rows(date_from=None, date_to=None, limit: int = None) -> list:
+    """收入日报展开成一笔一行（含所属日报的日期/备注），供列表展示与再编辑。"""
+    out = []
+    for rec in list_daily_income_full(date_from, date_to):
+        for row in rec.get("rows", []) or []:
+            out.append({
+                "row_id": row.get("id"),
+                "income_id": rec.get("id"),
+                "date": rec.get("date") or "",
+                "notes": rec.get("notes") or "",
+                "store": row.get("store") or "",
+                "source": row.get("source") or "",
+                "currency": row.get("currency") or "",
+                "amount": float(row.get("amount") or 0),
+            })
+    return out[-limit:] if limit else out
+
+
 def delete_daily_income_row(row_id: int):
     """只删除一条明细行；父记录若无剩余行则一并删除。"""
     conn = get_conn()
@@ -1048,11 +1171,18 @@ def delete_daily_expense(rec_id: int):
 # 支出日报明细：一笔一行（日期 + 摘要 + 类别 + 付款方式 + 币种 + 金额）
 
 def expense_category_label(key: str) -> str:
-    """费用类别 key → 显示名称。"""
-    for k, label in config.EXPENSE_CATEGORIES:
-        if k == key:
+    """费用类别 key → 显示名称（内置类别 + 设置里手工新增的自定义类别）。"""
+    k = str(key or "").strip()
+    if not k:
+        return ""
+    try:
+        categories = settings_mod.get_expense_categories()
+    except Exception:  # noqa: BLE001  设置读取失败时回退内置类别
+        categories = config.EXPENSE_CATEGORIES
+    for ck, label in categories:
+        if ck == k:
             return label
-    return key or ""
+    return k
 
 
 def save_daily_expense_item(rec: dict) -> int:
