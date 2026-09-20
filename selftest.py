@@ -230,6 +230,18 @@ def main():
               len(incomes) == 1 and len(incomes[0]["rows"]) == 4
               and incomes[0]["rows"][0]["amount"] == 30,
               f"got={len(incomes[0]['rows']) if incomes else 0} 行")
+
+        # 备注按笔独立：只改其中一笔，同一天其他笔不受影响（回归）
+        flat = database.list_daily_income_rows()
+        database.update_daily_income_row(flat[0]["row_id"], {
+            "store": flat[0]["store"], "source": flat[0]["source"],
+            "currency": flat[0]["currency"], "amount": flat[0]["amount"],
+            "notes": "第一笔备注"})
+        flat = database.list_daily_income_rows()
+        check("再编辑备注只改这一笔",
+              flat[0]["notes"] == "第一笔备注"
+              and all(r["notes"] == "" for r in flat[1:]),
+              f"got={[r['notes'] for r in flat]}")
         agg = database.daily_income_by_account()
         check("日报按支付方式+币种归集科目",
               abs(agg["cash"].get("USD", 0) - 30) < 0.01

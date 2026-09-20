@@ -2,6 +2,7 @@
 
 - 一笔一行：同一天可录入不同币种、不同支付方式的多笔收入。
 - 列表按「明细行」展示；点击某一行即把该笔数据回填到表单，可修改后再保存（再编辑）。
+- 备注按笔独立保存：改其中一笔的备注不会影响同一天的其他笔。
 - 「分店」下拉读取「设置 → 分店列表（Sucursales）」。
 - 「支付方式」下拉：银行卡 / 电子支付 / 现钞，各自限定可选币种。
 - 科目归属（财务报表，按支付方式 + 币种）：
@@ -227,6 +228,7 @@ class DailyIncomePage:
 
     def _collect(self) -> dict:
         amt = parse_amount(self.vars["amount"].get())
+        notes = self.vars["notes"].get()
         rows = []
         if amt:
             rows.append({
@@ -234,10 +236,10 @@ class DailyIncomePage:
                 "source": self.vars["method"].get(),
                 "currency": self._cur_code(self.vars["currency"].get()),
                 "amount": amt,
+                "notes": notes,      # 备注跟着这一笔走，不影响同一天其他笔
             })
         d = self.vars["date"].get().strip() or date_iso(datetime.date.today())
-        return {"id": self.current_row_id, "date": d,
-                "notes": self.vars["notes"].get(), "rows": rows}
+        return {"id": self.current_row_id, "date": d, "notes": notes, "rows": rows}
 
     def _save(self):
         try:
@@ -251,19 +253,15 @@ class DailyIncomePage:
                                        parent=self.frame)
                 return
             if self.current_row_id:
-                # 再编辑：只更新这一笔，同一天的其他笔保持不变
-                income_id = database.get_or_create_daily_income(
-                    rec["date"], rec["notes"])
+                # 再编辑：只更新这一笔（含本笔备注），同一天的其他笔保持不变
+                income_id = database.get_or_create_daily_income(rec["date"])
                 database.update_daily_income_row(self.current_row_id, row)
-                if income_id == self.current_income_id:
-                    database.update_daily_income_header(
-                        income_id, rec["date"], rec["notes"])
-                else:   # 日期改了：把这笔移到那一天的记录里
+                if income_id != self.current_income_id:
+                    # 日期改了：把这笔移到那一天的记录里
                     database.move_daily_income_row(self.current_row_id, income_id)
                 msg = "已更新该笔收入"
             else:
-                income_id = database.get_or_create_daily_income(
-                    rec["date"], rec["notes"])
+                income_id = database.get_or_create_daily_income(rec["date"])
                 database.add_daily_income_row(income_id, row)
                 msg = "已新增一笔收入"
             self.status.config(text=msg, foreground="green")

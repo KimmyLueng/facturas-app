@@ -98,19 +98,18 @@ def income():
                 "source": request.form.get("source", ""),
                 "currency": request.form.get("currency", ""),
                 "amount": parse_amount(request.form.get("amount")),
+                "notes": notes,      # 备注按笔存，不影响同一天其他笔
             }
             row_id = request.form.get("row_id", type=int)
             if row_id:      # 再编辑：只更新这一笔，同一天其他笔保持不变
                 before = database.get_daily_income_row(row_id) or {}
-                income_id = database.get_or_create_daily_income(date, notes)
+                income_id = database.get_or_create_daily_income(date)
                 database.update_daily_income_row(row_id, row)
-                if before.get("income_id") == income_id:
-                    database.update_daily_income_header(income_id, date, notes)
-                else:       # 日期改了：把这笔移到那一天的记录里
+                if before.get("income_id") != income_id:
+                    # 日期改了：把这笔移到那一天的记录里
                     database.move_daily_income_row(row_id, income_id)
                 return _go("income", "已更新该笔收入")
-            database.save_daily_income(
-                {"date": date, "notes": notes, "rows": [row]})
+            database.save_daily_income({"date": date, "rows": [row]})
             return _go("income", "已保存一笔收入")
         except Exception as e:  # noqa: BLE001
             return _go("income", str(e), False)

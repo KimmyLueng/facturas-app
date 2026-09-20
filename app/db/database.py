@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS daily_income_rows (
     source TEXT DEFAULT '',              -- 银行卡 / 电子支付 / 现钞
     currency TEXT DEFAULT 'Bs',          -- Bs / USD / CNY / USDT（VES 与 Bs 同币，统一 Bs）
     amount REAL DEFAULT 0,
+    notes TEXT DEFAULT '',               -- 本笔备注（每笔独立，不用表头的 notes）
     FOREIGN KEY (income_id) REFERENCES daily_income(id) ON DELETE CASCADE
 );
 
@@ -408,6 +409,21 @@ def _migrate(conn):
             "SELECT COUNT(*) AS c FROM daily_expense_items").fetchone()["c"]
         if not cnt:
             _migrate_expense_items(conn)
+    except sqlite3.OperationalError:
+        pass
+
+    # 收入日报明细：备注改为每笔独立（旧库把表头备注回填到各明细行，
+    # 否则编辑其中一笔的备注会同时改到同一天的其他笔）
+    try:
+        rcols = {r["name"] for r in conn.execute(
+            "PRAGMA table_info(daily_income_rows)").fetchall()}
+        if "notes" not in rcols:
+            conn.execute(
+                "ALTER TABLE daily_income_rows ADD COLUMN notes TEXT DEFAULT ''")
+            conn.execute(
+                """UPDATE daily_income_rows SET notes = IFNULL((
+                       SELECT i.notes FROM daily_income i
+                       WHERE i.id = daily_income_rows.income_id), '')""")
     except sqlite3.OperationalError:
         pass
 
@@ -828,13 +844,16 @@ def save_daily_income(rec: dict) -> int:
             amt = float(row.get("amount") or 0)
             if not amt:
                 continue  # 空行不入库
+            # 备注按笔存（row["notes"]）；旧调用方只给表头备注时沿用其值
+            row_notes = row["notes"] if "notes" in row else notes
             conn.execute(
                 """INSERT INTO daily_income_rows
-                   (income_id, store, source, currency, amount)
-                   VALUES (?,?,?,?,?)""",
+                   (income_id, store, source, currency, amount, notes)
+                   VALUES (?,?,?,?,?,?)""",
                 (rec_id, row.get("store", ""), row.get("source", ""),
                  config.normalize_currency(
-                     row.get("currency") or config.INCOME_CUR_BS), amt))
+                     row.get("currency") or config.INCOME_CUR_BS), amt,
+                 row_notes or ""))
         conn.commit()
         return rec_id
     finally:
@@ -937,15 +956,16 @@ def update_daily_income_header(income_id: int, date, notes: str = ""):
 
 
 def add_daily_income_row(income_id: int, row: dict) -> int:
-    """在指定日报下追加一条明细行（分店 × 支付方式 × 币种 × 金额）。"""
+    """在指定日报下追加一条明细行（分店 × 支付方式 × 币种 × 金额 + 本笔备注）。"""
     conn = get_conn()
     try:
         cur = conn.execute(
-            """INSERT INTO daily_income_rows (income_id, store, source, currency, amount)
-               VALUES (?,?,?,?,?)""",
+            """INSERT INTO daily_income_rows
+               (income_id, store, source, currency, amount, notes)
+               VALUES (?,?,?,?,?,?)""",
             (income_id, (row.get("store") or "").strip(), row.get("source", ""),
              config.normalize_currency(row.get("currency") or config.INCOME_CUR_BS),
-             float(row.get("amount") or 0)))
+             float(row.get("amount") or 0), row.get("notes") or ""))
         conn.commit()
         return cur.lastrowid
     finally:
@@ -953,7 +973,7 @@ def add_daily_income_row(income_id: int, row: dict) -> int:
 
 
 def update_daily_income_row(row_id: int, row: dict) -> int:
-    """更新一条收入明细行，返回其所属日报 id（行不存在返回 0）。"""
+    """更新一条收入明细行（含本笔备注），返回其所属日报 id（行不存在返回 0）。"""
     conn = get_conn()
     try:
         cur = conn.execute("SELECT income_id FROM daily_income_rows WHERE id = ?",
@@ -962,10 +982,10 @@ def update_daily_income_row(row_id: int, row: dict) -> int:
             return 0
         conn.execute(
             """UPDATE daily_income_rows
-               SET store=?, source=?, currency=?, amount=? WHERE id=?""",
+               SET store=?, source=?, currency=?, amount=?, notes=? WHERE id=?""",
             ((row.get("store") or "").strip(), row.get("source", ""),
              config.normalize_currency(row.get("currency") or config.INCOME_CUR_BS),
-             float(row.get("amount") or 0), row_id))
+             float(row.get("amount") or 0), row.get("notes") or "", row_id))
         conn.commit()
         return cur["income_id"]
     finally:
@@ -997,12 +1017,14 @@ def move_daily_income_row(row_id: int, income_id: int) -> int:
 
 
 def get_daily_income_row(row_id: int) -> dict:
-    """按明细行 id 取一笔收入（含所属日报的日期与备注），供再编辑使用。"""
+    """按明细行 id 取一笔收入（日期取所属日报，备注取本笔），供再编辑使用。"""
     conn = get_conn()
     try:
         row = conn.execute(
             """SELECT r.id AS row_id, r.income_id, r.store, r.source, r.currency,
-                      r.amount, i.date AS date, i.notes AS notes
+                      r.amount,
+                      IFNULL(r.notes, i.notes) AS notes,
+                      i.date AS date
                FROM daily_income_rows r
                JOIN daily_income i ON i.id = r.income_id
                WHERE r.id = ?""", (row_id,)).fetchone()
@@ -1011,8 +1033,16 @@ def get_daily_income_row(row_id: int) -> dict:
         conn.close()
 
 
+def _row_notes(row: dict, rec: dict) -> str:
+    """明细行备注：以本笔为准；旧库/异常数据回退到表头备注。"""
+    val = row.get("notes")
+    if val is None:
+        return rec.get("notes") or ""
+    return val
+
+
 def list_daily_income_rows(date_from=None, date_to=None, limit: int = None) -> list:
-    """收入日报展开成一笔一行（含所属日报的日期/备注），供列表展示与再编辑。"""
+    """收入日报展开成一笔一行（备注为每笔独立），供列表展示与再编辑。"""
     out = []
     for rec in list_daily_income_full(date_from, date_to):
         for row in rec.get("rows", []) or []:
@@ -1020,7 +1050,7 @@ def list_daily_income_rows(date_from=None, date_to=None, limit: int = None) -> l
                 "row_id": row.get("id"),
                 "income_id": rec.get("id"),
                 "date": rec.get("date") or "",
-                "notes": rec.get("notes") or "",
+                "notes": _row_notes(row, rec),
                 "store": row.get("store") or "",
                 "source": row.get("source") or "",
                 "currency": row.get("currency") or "",
