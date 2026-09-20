@@ -102,9 +102,16 @@ class ReportsPage:
             return
         doc_type = self.type_var.get()
         capital = self.app.state.capital()
-        self.report, self.docs = get_report(doc_type, d_from, d_to, capital)
-        self.pdf_btn.state(["!disabled"])
-        self._render()
+        try:
+            self.report, self.docs = get_report(doc_type, d_from, d_to, capital)
+            self.pdf_btn.state(["!disabled"])
+            self._render()
+        except Exception as e:  # noqa: BLE001  生成失败不应让界面崩溃
+            import traceback
+            traceback.print_exc()
+            self.report, self.docs = None, []
+            messagebox.showerror("生成报表失败", str(e), parent=self.frame)
+            return
         year = self.report.get("year")
         self.src_var.set(
             f"期初来源：{self.report.get('opening_source') or '—'}"
@@ -115,8 +122,10 @@ class ReportsPage:
 
     # ------------------------------------------------------------ 表格列
     def _base_cur(self) -> str:
+        """本位币显示名（报表尚未生成时取设置里的本位币）。"""
+        rep = self.report or {}
         return config.currency_label(
-            self.report.get("base_currency")
+            rep.get("base_currency")
             or self.app.state.settings.get("base_currency", "USD"))
 
     def _two_cols(self) -> list:
@@ -136,8 +145,12 @@ class ReportsPage:
                 ("ending_credit", "期末贷方", 105, "e")]
 
     def _setup_cols(self, cols):
-        self.tree["columns"] = [c[0] for c in cols]
-        self.tree["displaycolumns"] = [c[0] for c in cols]
+        ids = [c[0] for c in cols]
+        # 先恢复「显示全部列」再换列：残留的旧 displaycolumns（如 amount）
+        # 会让 Tk 在列数变化时抛 TclError「Invalid column index」，导致界面崩溃
+        self.tree["displaycolumns"] = "#all"
+        self.tree["columns"] = ids
+        self.tree["displaycolumns"] = ids
         for cid, title, width, anchor in cols:
             self.tree.heading(cid, text=title)
             self.tree.column(cid, width=width, anchor=anchor)
@@ -150,8 +163,8 @@ class ReportsPage:
         for row in self.report.get("rows", []):
             tag = "bold" if row.get("is_parent") else ""
             self.tree.insert("", "end", values=(
-                row["code"], row["name"],
-                *[format_amount(row[k]) for k in keys]), tags=(tag,))
+                row.get("code") or "", row.get("name") or "",
+                *[format_amount(row.get(k, 0.0)) for k in keys]), tags=(tag,))
         t = self.report.get("totals") or {}
         self.tree.insert("", "end", values=(
             "合计", "（末级科目合计）", *[format_amount(t.get(k, 0.0)) for k in keys]),

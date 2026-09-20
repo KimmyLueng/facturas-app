@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from app import config, settings
+from app.utils import frame_bg as _frame_bg
 from app.sync import manager
 
 
@@ -109,7 +110,7 @@ class SyncPage:
         self.log_tree.configure(yscrollcommand=vsb.set)
 
         note = tk.Text(f, height=4, wrap="word", font=("Microsoft YaHei UI", 9),
-                       foreground="#333", relief="flat", bg=self.frame.cget("bg"))
+                       foreground="#333", relief="flat", bg=_frame_bg(self.frame))
         note.insert("1.0",
                     "说明：\n"
                     "· 同步内容为本机账套：数据库 + 设置（分店、汇率、期初资本）；"

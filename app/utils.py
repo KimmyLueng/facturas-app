@@ -96,6 +96,17 @@ def date_iso(d) -> str:
     return d.strftime("%Y-%m-%d") if d else ""
 
 
+def frame_bg(widget, default="#f0f0f0") -> str:
+    """取控件背景色：ttk 控件没有 -bg 选项（cget 会抛 TclError），回退顶层窗口。"""
+    try:
+        return widget.cget("bg")
+    except Exception:  # noqa: BLE001
+        try:
+            return widget.winfo_toplevel().cget("bg")
+        except Exception:  # noqa: BLE001
+            return default
+
+
 # ---------------------------------------------------------------- 单据号
 _DATE_LIKE = re.compile(r"^\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4}$")
 

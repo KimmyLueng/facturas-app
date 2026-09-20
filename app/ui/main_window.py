@@ -1,6 +1,9 @@
 """主窗口：左侧导航 + 右侧内容页。"""
 import datetime
+import os
+import sys
 import threading
+import traceback
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -56,9 +59,29 @@ class MainWindow(tk.Tk):
 
         self.state = AppState()
 
+        # Tk 回调里的异常默认只打到 stderr（打包成窗口程序时看不到），
+        # 这里统一记录到 error.log 并弹窗，避免界面「闪退」且查不到原因
+        self.report_callback_exception = self._on_callback_error
+
         # 必须先建表，再构建 UI（各页面首屏会立即查询数据库）
         self._init_db()
         self._build_ui()
+
+    def _on_callback_error(self, exc, val, tb):
+        text = "".join(traceback.format_exception(exc, val, tb))
+        log_path = os.path.join(config.DATA_DIR, "error.log")
+        try:
+            os.makedirs(config.DATA_DIR, exist_ok=True)
+            with open(log_path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+        except Exception:  # noqa: BLE001
+            log_path = "(无法写入日志)"
+        print(text, file=sys.stderr)
+        try:
+            messagebox.showerror(
+                "程序错误", f"{val}\n\n详情请查看：\n{log_path}", parent=self)
+        except Exception:  # noqa: BLE001
+            pass
 
     def _init_db(self):
         try:

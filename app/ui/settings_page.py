@@ -8,7 +8,7 @@ from app import config
 from app.rates import (fetch_usd_ves, fetch_usd_eur, fetch_usd_cny,
                        CURRENCY_NAMES)
 from app.settings import load_settings, save_settings
-from app.utils import parse_amount, format_amount
+from app.utils import parse_amount, format_amount, frame_bg as _frame_bg
 
 
 class SettingsPage:
@@ -115,7 +115,7 @@ class SettingsPage:
         ttk.Button(r5, text="打开数据目录", command=self._open_dir).pack(side="left", padx=10)
 
         note = tk.Text(f, height=5, wrap="word", font=("Microsoft YaHei UI", 9),
-                       foreground="#333", relief="flat", bg=self.frame.cget("bg"))
+                       foreground="#333", relief="flat", bg=_frame_bg(self.frame))
         note.insert("1.0",
                     "说明：\n"
                     "· 扫描单据时自动识别币种（EUR/USD/Bs 玻利瓦尔/CNY 人民币等）与单据汇率；\n"

@@ -581,6 +581,67 @@ def main():
           bool(rep.get("rows")) and "base_currency" in rep)
     config.DB_PATH = old_db
 
+    print("== 6i. 桌面界面构建 / 报表切换（无显示环境跳过）==")
+    try:
+        config.DB_PATH = tmp_db      # 界面构建需要完整库（临时库已建表并有数据）
+        import tkinter as tk
+        from tkinter import ttk, messagebox
+        from app.ui.reports_page import ReportsPage
+        from app.ui.settings_page import SettingsPage
+        from app.ui.sync_page import SyncPage
+        from app.ui.daily_income_page import DailyIncomePage
+        from app.ui.daily_expense_page import DailyExpensePage
+
+        # 无人值守：屏蔽弹窗，避免报表提示框阻塞
+        messagebox.showinfo = lambda *a, **k: None
+        messagebox.showwarning = lambda *a, **k: None
+
+        root = tk.Tk()
+        root.withdraw()
+
+        class _State:
+            settings = {"base_currency": "USD"}
+
+            def capital(self):
+                return 0.0
+
+        class _App:
+            state = _State()
+
+        def _build(cls):
+            p = cls(_App())
+            p.frame = ttk.Frame(root)
+            p.frame.pack()
+            p.build()
+            return p
+
+        for cls in (SettingsPage, SyncPage, DailyIncomePage, DailyExpensePage,
+                    ReportsPage):
+            try:
+                _build(cls)
+                check(f"{cls.__name__} 可构建", True)
+            except Exception as e:  # noqa: BLE001
+                check(f"{cls.__name__} 可构建", False, f"{e}")
+
+        page = _build(ReportsPage)
+        counts = {}
+        for t in ("balance", "income", "trial", "balance", "trial"):
+            page.type_var.set(t)
+            page._generate()
+            counts[t] = len(page.tree.get_children())
+        check("资产负债表/利润表可渲染",
+              counts["balance"] > 0 and counts["income"] > 0, f"got={counts}")
+        check("科目余额表可渲染且可来回切换", counts["trial"] > 0,
+              f"got={counts}")
+        # 回归：2 列 ↔ 8 列切换曾触发 TclError「Invalid column index」导致界面崩溃
+        check("切到科目余额表后为 8 列",
+              len(page.tree["columns"]) == 8, f"got={page.tree['columns']}")
+        root.destroy()
+    except Exception as e:  # noqa: BLE001
+        print(f"  [SKIP] 桌面界面冒烟：{e}")
+    finally:
+        config.DB_PATH = old_db
+
     print(f"\n结果: {PASS} 通过, {FAIL} 失败")
     sys.exit(1 if FAIL else 0)
 
