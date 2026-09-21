@@ -579,6 +579,62 @@ def main():
     rep = rep[0] if isinstance(rep, tuple) else rep
     check("get_report('trial') 可用",
           bool(rep.get("rows")) and "base_currency" in rep)
+
+    print("== 6h2. 店铺收入 / 支出日报 → 财务报表（模块关联）==")
+    from app import settings as settings_mod
+    st = settings_mod.load_settings()
+    st["base_currency"] = "USD"
+    settings_mod.save_settings(st)
+    iid = database.get_or_create_daily_income("2026-09-01", "")
+    database.add_daily_income_row(iid, {
+        "store": "A店", "source": config.INCOME_SOURCE_CASH,
+        "currency": "USD", "amount": 100, "notes": ""})
+    database.add_daily_income_row(iid, {
+        "store": "B店", "source": config.INCOME_SOURCE_EPAY,
+        "currency": "USD", "amount": 300, "notes": ""})
+    for _cat, _amt in (("工资", 200), ("水电费", 60)):
+        database.save_daily_expense_item({
+            "date": "2026-09-01", "summary": _cat, "category": _cat,
+            "method": config.PAY_METHOD_CASH, "currency": "USD",
+            "amount": _amt, "notes": ""})
+    entries, stats, un = reports.daily_book_entries(None, None)
+    check("收入 2 笔 / 支出 2 笔生成 8 条分录",
+          stats["income_count"] == 2 and stats["expense_count"] == 2
+          and len(entries) == 8, f"got={stats} n={len(entries)}")
+    check("金额折算本位币（收入 400 / 支出 260）",
+          abs(stats["income_amount"] - 400) < 0.01
+          and abs(stats["expense_amount"] - 260) < 0.01 and not un,
+          f"got={stats} un={un}")
+    docs = database.list_documents()
+    tr = reports.build_trial_balance(docs, 0.0, entries=entries)
+    by_code = {r["code"]: r for r in tr["rows"]}
+    check("收入日报：库存现金借 100 + 主营业务收入贷 400",
+          abs(by_code["1001"]["debit"] - 100) < 0.01
+          and abs(by_code["5001"]["credit"] - 400) < 0.01,
+          f"cash={by_code['1001']} sales={by_code['5001']}")
+    check("支出日报落到费用末级科目（工资 / 水电）",
+          any(r["code"].startswith("5602") and r["debit"] > 0
+              and not r["is_parent"] for r in tr["rows"]),
+          f"got={[ (r['code'], r['debit']) for r in tr['rows'] if r['debit'] ]}")
+    check("计入日报后借贷仍平衡",
+          abs(tr["totals"]["debit"] - tr["totals"]["credit"]) < 0.01
+          and abs(tr["totals"]["ending_debit"]
+                  - tr["totals"]["ending_credit"]) < 0.01,
+          f"got={tr['totals']}")
+    bs = reports.build_balance_sheet(docs, 0.0, entries=entries)
+    check("资产负债表仍平衡（资产 = 负债 + 权益）", bs["balanced"],
+          f"activo={bs['total_activo']} pas+pat={bs['total_pasivo_pat']}")
+    inc = reports.build_income_statement(docs, entries=entries)
+    check("利润表含日报收入 400 / 费用 260 / 净利 140",
+          abs(inc["ventas"] - 400) < 0.01 and abs(inc["coste"] - 260) < 0.01
+          and abs(inc["resultado"] - 140) < 0.01,
+          f"ventas={inc['ventas']} coste={inc['coste']} res={inc['resultado']}")
+    rep2 = reports.get_report("income")
+    rep2 = rep2[0] if isinstance(rep2, tuple) else rep2
+    check("get_report 带出数据来源统计",
+          (rep2.get("sources") or {}).get("income_rows") == 2
+          and (rep2.get("sources") or {}).get("expense_rows") == 2,
+          f"got={rep2.get('sources')}")
     config.DB_PATH = old_db
 
     print("== 6i. 桌面界面构建 / 报表切换（无显示环境跳过）==")

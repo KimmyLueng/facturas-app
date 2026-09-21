@@ -20,6 +20,15 @@
 <div class="alert err">{{ error }}</div>
 {% endif %}
 
+{% if sources %}
+<p class="muted">
+  数据来源：单据 {{ sources.get('docs', 0) }} 张 ·
+  店铺收入日报 {{ sources.get('income_rows', 0) }} 笔（{{ sources.get('income_amount', 0) | money }}） ·
+  店铺支出日报 {{ sources.get('expense_rows', 0) }} 笔（{{ sources.get('expense_amount', 0) | money }}）
+  —— 金额均为折算后的本位币
+</p>
+{% endif %}
+
 {% if rtype == 'trial' %}
 <div class="table-wrap">
 <table>

@@ -121,6 +121,18 @@ class ReportsPage:
             messagebox.showinfo("币种提示", note, parent=self.frame)
 
     # ------------------------------------------------------------ 表格列
+    def _src_text(self) -> str:
+        """数据来源说明：单据 + 店铺收入/支出日报（模块关联）。"""
+        s = (self.report or {}).get("sources") or {}
+        parts = [f"{s.get('docs', len(self.docs))} 张单据"]
+        if s.get("income_rows"):
+            parts.append(f"收入日报 {s['income_rows']} 笔"
+                         f" {format_amount(s.get('income_amount', 0.0))}")
+        if s.get("expense_rows"):
+            parts.append(f"支出日报 {s['expense_rows']} 笔"
+                         f" {format_amount(s.get('expense_amount', 0.0))}")
+        return " · ".join(parts)
+
     def _base_cur(self) -> str:
         """本位币显示名（报表尚未生成时取设置里的本位币）。"""
         rep = self.report or {}
@@ -175,7 +187,7 @@ class ReportsPage:
             f"/ 贷方 {format_amount(t.get('credit', 0.0))} · "
             f"期末借方 {format_amount(t.get('ending_debit', 0.0))} "
             f"/ 贷方 {format_amount(t.get('ending_credit', 0.0))} · "
-            f"含 {len(self.docs)} 张单据" +
+            f"{self._src_text()}" +
             (f"\n{self.report.get('currency_note') or ''}"
              if self.report.get("currency_note") else ""))
 
@@ -203,7 +215,7 @@ class ReportsPage:
                 ("✔ 资产负债表平衡" if ok else
                  f"✗ 资产负债表不平衡，差额 {format_amount(r['diff'])}") +
                 f" · 资产合计 {format_amount(r['total_activo'])} · " +
-                f"含 {len(self.docs)} 张单据" +
+                f"{self._src_text()}" +
                 (f"\n{note}" if note else ""))
         else:
             self._setup_cols(self._two_cols())
@@ -220,7 +232,8 @@ class ReportsPage:
             self.summary_var.set(
                 f"收入 {format_amount(r['ventas'])} · 成本 {format_amount(r['coste'])} · "
                 f"净利润 {format_amount(r['resultado'])} · "
-                f"出货 {r['num_venta']} 张 / 进货 {r['num_compra']} 张" +
+                f"出货 {r['num_venta']} 张 / 进货 {r['num_compra']} 张 · "
+                f"{self._src_text()}" +
                 (f"\n{note}" if note else ""))
 
     def _section(self, title, rows):

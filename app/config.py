@@ -287,6 +287,14 @@ ACCOUNT_COST_OF_SALES = "610" # Coste de ventas 销售成本
 ACCOUNT_IVA_INPUT = "472"     # HP IVA Soportado 进项税（可抵扣）
 ACCOUNT_IVA_OUTPUT = "477"    # HP IVA Repercutido 销项税（应交）
 
+# 店铺支出日报：费用类别对应科目（科目表为空时回退这些 PGC 常量）
+ACCOUNT_EXPENSE_SALARY = "640"      # Sueldos y salarios 工资
+ACCOUNT_EXPENSE_WELFARE = "649"     # 福利费（膳食等职工福利）
+ACCOUNT_EXPENSE_UTILITIES = "628"   # Suministros 水电费
+ACCOUNT_EXPENSE_RENT = "621"        # Arrendamientos 租赁费（铺租）
+ACCOUNT_EXPENSE_TAX = "631"         # Otros tributos 税金
+ACCOUNT_EXPENSE_OTHER = "629"       # Otros servicios 其他费用（市政管理费/自定义类别）
+
 # 科目显示名称（西班牙语 + 中文）
 ACCOUNT_NAMES = {
     ACCOUNT_CASH: "Caja/Bancos 现金及银行",
@@ -301,6 +309,23 @@ ACCOUNT_NAMES = {
     ACCOUNT_COST_OF_SALES: "Coste de ventas 销售成本",
     ACCOUNT_IVA_INPUT: "HP IVA Soportado 进项税",
     ACCOUNT_IVA_OUTPUT: "HP IVA Repercutido 销项税",
+    ACCOUNT_EXPENSE_SALARY: "Sueldos 工资",
+    ACCOUNT_EXPENSE_WELFARE: "Prestaciones 福利费",
+    ACCOUNT_EXPENSE_UTILITIES: "Suministros 水电费",
+    ACCOUNT_EXPENSE_RENT: "Arrendamientos 租赁费",
+    ACCOUNT_EXPENSE_TAX: "Tributos 税金",
+    ACCOUNT_EXPENSE_OTHER: "Otros gastos 其他费用",
+}
+
+# 支出日报「费用类别 key」→ 报表科目 key（见 ACCOUNTING_MAP）
+EXPENSE_ACCOUNT_KEYS = {
+    "salary": "expense_salary",        # 工资
+    "overtime": "expense_salary",      # 加班费（同工资）
+    "meal": "expense_welfare",         # 膳食 → 福利费
+    "tax": "expense_tax",              # 税金
+    "utilities": "expense_utilities",  # 水电费
+    "rent": "expense_rent",            # 铺租
+    "municipal": "expense_other",      # 市政管理费
 }
 
 # ---------------------------------------------------------------- 报表科目映射
@@ -319,6 +344,13 @@ ACCOUNTING_MAP = {
     "capital": (["3001"], ["实收资本"]),
     "receivable": (["1122"], ["应收账款"]),
     "payable": (["2202"], ["应付账款"]),
+    # 店铺支出日报的费用类别（中国小企业会计准则科目优先，再按名称关键字）
+    "expense_salary": (["560201", "560101"], ["工资"]),
+    "expense_welfare": (["560202", "560102"], ["福利", "膳食"]),
+    "expense_tax": (["5403", "22210102"], ["税金及附加", "税金"]),
+    "expense_utilities": (["560211", "5602"], ["水电"]),
+    "expense_rent": (["560210", "5602"], ["租赁", "租金", "房租"]),
+    "expense_other": (["5602", "5601"], ["管理费用", "其他费用"]),
 }
 
 # 科目类别（按《小企业会计准则》编码首位）
@@ -346,6 +378,12 @@ CATEGORY_OVERRIDES = {
     ACCOUNT_SALES: "pnl",             # 700 Ventas
     ACCOUNT_PURCHASES: "pnl",         # 600 Compras
     ACCOUNT_COST_OF_SALES: "pnl",     # 610 Coste de ventas
+    ACCOUNT_EXPENSE_SALARY: "pnl",    # 640 Sueldos y salarios
+    ACCOUNT_EXPENSE_WELFARE: "pnl",   # 649 福利费
+    ACCOUNT_EXPENSE_UTILITIES: "pnl", # 628 Suministros
+    ACCOUNT_EXPENSE_RENT: "pnl",      # 621 Arrendamientos
+    ACCOUNT_EXPENSE_TAX: "pnl",       # 631 Otros tributos
+    ACCOUNT_EXPENSE_OTHER: "pnl",     # 629 Otros servicios
 }
 
 

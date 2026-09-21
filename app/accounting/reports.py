@@ -78,7 +78,100 @@ FALLBACK_ACCOUNTS = {
     "capital": config.ACCOUNT_CAPITAL,
     "receivable": config.ACCOUNT_CUSTOMERS,
     "payable": config.ACCOUNT_SUPPLIERS,
+    "expense_salary": config.ACCOUNT_EXPENSE_SALARY,
+    "expense_welfare": config.ACCOUNT_EXPENSE_WELFARE,
+    "expense_tax": config.ACCOUNT_EXPENSE_TAX,
+    "expense_utilities": config.ACCOUNT_EXPENSE_UTILITIES,
+    "expense_rent": config.ACCOUNT_EXPENSE_RENT,
+    "expense_other": config.ACCOUNT_EXPENSE_OTHER,
 }
+
+
+def _child_codes(chart: dict, code: str) -> list:
+    """科目的直接下级编码（优先 parent 字段，缺失时按编码前缀推断）。"""
+    kids = [c for c, n in chart.items()
+            if c != code and ((n or {}).get("parent") or "").strip() == code]
+    if not kids:
+        kids = [c for c in chart
+                if c.startswith(code) and len(c) > len(code)
+                and not ((chart.get(c) or {}).get("parent") or "").strip()]
+    return sorted(kids)
+
+
+def _leaf_account(chart: dict, code: str, depth: int = 0) -> str:
+    """把科目下钻到末级（叶子）科目。
+
+    报表里父科目是「自动汇总行」，金额若直接记在父科目上，
+    末级科目合计就会漏掉这笔（科目余额表借贷不平），所以统一落到叶子科目。
+    """
+    cur = code or ""
+    for _ in range(6):
+        if cur not in chart:
+            return cur
+        kids = _child_codes(chart, cur)
+        if not kids:
+            return cur
+        # 优先「其他/杂项」明细，其次第一个明细
+        pick = kids[0]
+        for k in kids:
+            nm = (chart.get(k) or {}).get("name") or ""
+            if "其他" in nm or "杂项" in nm:
+                pick = k
+                break
+        cur = pick
+    return cur
+
+
+def resolve_expense_account(chart: dict, category: str, label: str = "") -> str:
+    """支出日报的「费用类别」→ 科目编码。
+
+    1) 类别 key（salary / utilities …）→ config.EXPENSE_ACCOUNT_KEYS；
+    2) 类别显示名（如「水电费」）反查内置类别 key；
+    3) 自定义类别（如「设备维修费」）在损益类科目里按名称匹配；
+    4) 仍匹配不到时回退「其他费用」；最后统一下钻到末级科目。
+    """
+    cat = (category or "").strip()
+    lab = (label or "").strip()
+    key = config.EXPENSE_ACCOUNT_KEYS.get(cat, "")
+    if not key:
+        key = config.EXPENSE_ACCOUNT_KEYS.get(lab, "")
+    if not key:
+        for ck, cl in config.EXPENSE_CATEGORIES:
+            if cat in (ck, cl) or (lab and lab in (ck, cl)):
+                key = config.EXPENSE_ACCOUNT_KEYS.get(ck, "")
+                if key:
+                    break
+    if not key:
+        hit = _find_account_by_name(chart, cat or lab, "pnl")
+        if hit:
+            return _leaf_account(chart, hit)
+        key = "expense_other"
+    code = resolve_account(chart, key)
+    if not code:
+        code = resolve_account(chart, "expense_other")
+    return _leaf_account(chart, code)
+
+
+def _find_account_by_name(chart: dict, text: str, category: str = None) -> str:
+    """按科目名称匹配：精确 → 包含 → 名称前缀（「水电费」命中「水电管理费」）。"""
+    t = (text or "").strip()
+    if not t:
+        return ""
+
+    def _ok(code):
+        return (not category
+                or config.account_category(code) == category)
+
+    for code in sorted(chart):
+        if (chart[code] or {}).get("name") == t and _ok(code):
+            return code
+    for n in range(len(t), 1, -1):        # 逐步缩短：水电费 → 水电
+        sub = t[:n]
+        for code in sorted(chart):
+            name = (chart[code] or {}).get("name") or ""
+            if sub and sub in name and _ok(code):
+                return code
+    return ""
 
 
 def load_chart_index() -> dict:
@@ -234,10 +327,12 @@ def opening_source(year=None, capital=0.0) -> str:
 
 
 # ---------------------------------------------------------------- 科目余额
-def compute_movements(docs, capital=0.0, year=None, costs=None):
+def compute_movements(docs, capital=0.0, year=None, costs=None, entries=None):
     """返回 (科目余额 {code: signed}, 本期发生额 {code: {'debit', 'credit'}})。
 
     约定借方为正、贷方为负；期初余额不计入本期发生额。
+    entries：额外的本期分录 [(科目编码, signed 金额)]，
+    用于把店铺收入/支出日报（不生成单据的模块）并入报表。
     """
     chart = load_chart_index()
     acc = {k: resolve_account(chart, k) for k in FALLBACK_ACCOUNTS}
@@ -247,6 +342,7 @@ def compute_movements(docs, capital=0.0, year=None, costs=None):
     def add(code, amount, move=True):
         if not code:
             return
+        code = _leaf_account(chart, code)
         bal[code] = bal.get(code, 0.0) + amount
         if not move:      # 期初不算本期发生额
             return
@@ -283,12 +379,18 @@ def compute_movements(docs, capital=0.0, year=None, costs=None):
             add(acc["cost_of_sales"], cost)
             add(acc["inventory"], -cost)
             d["cost_total"] = cost
+
+    # 店铺收入 / 支出日报（模块间关联：日报数据同样进报表）
+    for code, amount in (entries or []):
+        add(code, amount)
+
     return bal, moves
 
 
-def compute_balances(docs, capital=0.0, year=None, costs=None) -> dict:
+def compute_balances(docs, capital=0.0, year=None, costs=None,
+                     entries=None) -> dict:
     """返回科目余额 dict {account_code: signed}，约定借方为正、贷方为负。"""
-    bal, _moves = compute_movements(docs, capital, year, costs)
+    bal, _moves = compute_movements(docs, capital, year, costs, entries)
     return bal
 
 
@@ -300,10 +402,10 @@ def _set_sale_costs(docs, costs):
 
 
 # ---------------------------------------------------------------- 报表结构
-def build_balance_sheet(docs, capital=0.0, year=None) -> dict:
+def build_balance_sheet(docs, capital=0.0, year=None, entries=None) -> dict:
     """资产负债表：按科目表分组（资产 1xxx/4xxx、负债 2xxx、权益 3xxx/6xxx + 本期损益）。"""
     chart = load_chart_index()
-    bal = compute_balances(docs, capital, year)
+    bal = compute_balances(docs, capital, year, entries=entries)
 
     activo, pasivo, patrimonio = [], [], []
     for code in sorted(bal):
@@ -341,12 +443,13 @@ def build_balance_sheet(docs, capital=0.0, year=None) -> dict:
     }
 
 
-def build_income_statement(docs, year=None) -> dict:
+def build_income_statement(docs, year=None, entries=None) -> dict:
     """利润表：按损益类科目（5xxx）生成，含期初“本年累计损益发生额”。"""
     chart = load_chart_index()
     costs = _running_avg_cost(docs)
     docs = _set_sale_costs(docs, costs)
-    bal = compute_balances(docs, capital=0.0, year=year, costs=costs)
+    bal = compute_balances(docs, capital=0.0, year=year, costs=costs,
+                           entries=entries)
 
     income_rows, expense_rows = [], []
     for code in sorted(bal):
@@ -400,13 +503,13 @@ def _ancestor_codes(chart: dict, code: str) -> list:
     return out
 
 
-def build_trial_balance(docs, capital=0.0, year=None) -> dict:
+def build_trial_balance(docs, capital=0.0, year=None, entries=None) -> dict:
     """科目余额表：列出全部科目（按层级缩进，父科目自动汇总其明细）。
 
     每行含 期初余额（借/贷）、本期发生额（借/贷）、期末余额（借/贷）。
     """
     chart = load_chart_index()
-    _bal, moves = compute_movements(docs, capital, year)
+    _bal, moves = compute_movements(docs, capital, year, entries=entries)
     opening = opening_balances(year)
     if not any(opening.values()) and capital:
         acc = {k: resolve_account(chart, k) for k in FALLBACK_ACCOUNTS}
@@ -464,6 +567,81 @@ def build_trial_balance(docs, capital=0.0, year=None) -> dict:
             "opening_source": opening_source(year, capital)}
 
 
+def daily_book_entries(date_from=None, date_to=None, settings: dict = None):
+    """把「店铺收入日报 + 店铺支出日报」折算成本位币并生成报表分录。
+
+    模块关联：这两个模块不生成单据，以前进不了财务报表，现在按下列口径入账：
+
+      收入日报：借 货币资金（支付方式+币种 → 库存现金/银行存款/其他货币资金）
+               贷 主营业务收入
+      支出日报：借 费用科目（费用类别 → 工资/福利/水电/租赁/税金/其他）
+               贷 货币资金（付款方式对应的明细科目）
+
+    返回 (entries, stats, unconverted)。
+    """
+    settings = settings if settings is not None else load_settings()
+    chart = load_chart_index()
+
+    def _iso(d):
+        return d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else d
+
+    d_from, d_to = _iso(date_from), _iso(date_to)
+
+    entries = []
+    stats = {"income_count": 0, "income_amount": 0.0,
+             "expense_count": 0, "expense_amount": 0.0}
+    unconverted = []
+
+    try:
+        income_rows = database.list_daily_income_rows(d_from, d_to)
+    except Exception:  # noqa: BLE001  旧库缺表时跳过
+        income_rows = []
+    sales_acc = resolve_account(chart, "sales")
+    for r in income_rows:
+        amt = float(r.get("amount") or 0)
+        if not amt:
+            continue
+        cur = config.normalize_currency(r.get("currency")) or config.DEFAULT_BASE_CURRENCY
+        base_amt, ok = convert_to_base(amt, cur, settings)
+        if not ok:
+            unconverted.append(
+                f"收入 {r.get('date') or ''} {r.get('store') or ''}".strip())
+        fund_acc = resolve_account(
+            chart, config.income_account_key(r.get("source"), cur))
+        entries.append((fund_acc, base_amt))      # 借：货币资金
+        entries.append((sales_acc, -base_amt))    # 贷：主营业务收入
+        stats["income_count"] += 1
+        stats["income_amount"] += base_amt
+
+    try:
+        expense_rows = database.list_daily_expense_items(d_from, d_to)
+    except Exception:  # noqa: BLE001  旧库缺表时跳过
+        expense_rows = []
+    for r in expense_rows:
+        amt = float(r.get("amount") or 0)
+        if not amt:
+            continue
+        cur = config.normalize_currency(r.get("currency")) or config.DEFAULT_BASE_CURRENCY
+        base_amt, ok = convert_to_base(amt, cur, settings)
+        if not ok:
+            unconverted.append(
+                f"支出 {r.get('date') or ''} {r.get('summary') or ''}".strip())
+        exp_acc = resolve_expense_account(
+            chart, r.get("category"),
+            database.expense_category_label(r.get("category")))
+        pay_acc = resolve_payment_account(r.get("method"))
+        if not pay_acc:
+            channel = payment_channel(r.get("method"))
+            pay_acc = resolve_account(
+                chart, channel if channel in ("cash", "bank") else "cash")
+        entries.append((exp_acc, base_amt))       # 借：费用
+        entries.append((pay_acc, -base_amt))      # 贷：货币资金
+        stats["expense_count"] += 1
+        stats["expense_amount"] += base_amt
+
+    return entries, stats, unconverted
+
+
 def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=None):
     """统一入口。doc_type: 'balance' / 'income' / 'trial'
 
@@ -496,19 +674,32 @@ def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=No
     if year is None:
         ref = date_from or date_to
         year = str(ref.year) if ref is not None else str(datetime.date.today().year)
+
+    # 店铺收入 / 支出日报 → 分录（与单据一起进报表）
+    entries, daily_stats, daily_unconverted = daily_book_entries(
+        date_from, date_to, settings)
+
     if doc_type == "trial":
-        report = build_trial_balance(docs, capital, year)
+        report = build_trial_balance(docs, capital, year, entries=entries)
     elif doc_type == "balance":
-        report = build_balance_sheet(docs, capital, year)
+        report = build_balance_sheet(docs, capital, year, entries=entries)
     else:
-        report = build_income_statement(docs, year)
+        report = build_income_statement(docs, year, entries=entries)
     report["base_currency"] = base_currency
+    report["sources"] = {
+        "docs": len(docs),
+        "income_rows": daily_stats["income_count"],
+        "income_amount": round(daily_stats["income_amount"], 2),
+        "expense_rows": daily_stats["expense_count"],
+        "expense_amount": round(daily_stats["expense_amount"], 2),
+    }
     report["currency_note"] = ""
+    unconverted = unconverted + daily_unconverted
     if unconverted:
         report["currency_note"] = (
-            f"注意：{len(unconverted)} 张单据币种/汇率缺失，金额按原值计入"
+            f"注意：{len(unconverted)} 笔（单据/日报）币种或汇率缺失，金额按原值计入"
             f"（{', '.join(unconverted[:5])}{'…' if len(unconverted) > 5 else ''}），"
-            "请检查单据币种与官方汇率设置。")
+            "请检查币种与官方汇率设置。")
     return report, docs
 
 
@@ -539,6 +730,14 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
     if date_to:
         span += f" hasta {date_to.strftime('%d/%m/%Y')}"
 
+    src = report.get("sources") or {}
+    sources_line = (
+        f"数据来源：单据 {src.get('docs', 0)} 张 · "
+        f"店铺收入日报 {src.get('income_rows', 0)} 笔"
+        f"（{format_amount(src.get('income_amount', 0.0))}） · "
+        f"店铺支出日报 {src.get('expense_rows', 0)} 笔"
+        f"（{format_amount(src.get('expense_amount', 0.0))}）")
+
     doc = SimpleDocTemplate(out_path, pagesize=A4, rightMargin=15*mm,
                             leftMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
     story = []
@@ -552,6 +751,8 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
                 f"币种：本位币 {config.currency_label(report['base_currency'])}", h2))
         if report.get("currency_note"):
             story.append(Paragraph(report["currency_note"], h2))
+        if sources_line:
+            story.append(Paragraph(sources_line, h2))
         story.append(Spacer(1, 6*mm))
 
         head = ["编码", "科目名称", "期初借方", "期初贷方",
@@ -589,6 +790,8 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
                 f"币种：本位币 {config.currency_label(report['base_currency'])}", h2))
         if report.get("currency_note"):
             story.append(Paragraph(report["currency_note"], h2))
+        if sources_line:
+            story.append(Paragraph(sources_line, h2))
         story.append(Spacer(1, 6*mm))
 
         def seccion(title, rows, total, total_label):
@@ -629,6 +832,8 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
                 f"币种：本位币 {config.currency_label(report['base_currency'])}", h2))
         if report.get("currency_note"):
             story.append(Paragraph(report["currency_note"], h2))
+        if sources_line:
+            story.append(Paragraph(sources_line, h2))
         story.append(Spacer(1, 6*mm))
         data = [["", "Importe 金额"]]
         for r in report["rows"]:
