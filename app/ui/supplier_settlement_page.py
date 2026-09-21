@@ -162,7 +162,7 @@ class SupplierSettlementPage:
 
     # ---------------------------------------------- 付款方式（货币资金科目）
     def _pay_method_options(self) -> list:
-        """付款方式下拉 = 科目表货币资金类明细科目。"""
+        """付款方式下拉 = 货币资金三大类（库存现金 / 银行存款 / 其他货币资金）。"""
         try:
             from app.accounting.reports import payment_account_options
             return payment_account_options()

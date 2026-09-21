@@ -26,12 +26,12 @@ class DailyExpensePage:
         self.method_hint = None
         # 费用类别：界面显示名称 ←→ 数据库 key（含设置里自定义的类别）
         self._reload_categories()
-        # 付款方式：科目表里货币资金的明细科目
+        # 付款方式：货币资金三大类（库存现金 / 银行存款 / 其他货币资金）
         self._reload_methods()
 
     # ------------------------------------------------------ 付款方式
     def _reload_methods(self):
-        """付款方式下拉 = 科目表货币资金类明细科目（同名子科目优先）。"""
+        """付款方式下拉 = 货币资金三大类，与收入日报支付来源一致。"""
         try:
             from app.accounting.reports import payment_account_options
             self.pay_options = payment_account_options()
@@ -158,7 +158,7 @@ class DailyExpensePage:
             values=[label for _k, label in self.categories])
         self.cat_combo.grid(row=1, column=1, sticky="w", padx=8, pady=3)
 
-        # 付款方式：取科目表里货币资金的明细科目（同名子科目），可直接输入
+        # 付款方式：货币资金三大类（库存现金 / 银行存款 / 其他货币资金）
         ttk.Label(form, text="付款方式").grid(row=1, column=2, sticky="w", padx=(14, 0))
         self.vars["method"] = tk.StringVar(value=self._default_method())
         self.method_combo = ttk.Combobox(

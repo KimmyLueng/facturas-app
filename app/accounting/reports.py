@@ -196,10 +196,13 @@ def resolve_account(chart: dict, key: str) -> str:
     return FALLBACK_ACCOUNTS.get(key, "")
 
 
-# ------------------------------------------------ 付款方式 ↔ 货币资金明细科目
-# 付款方式下拉直接取科目表里「货币资金」类（1001 库存现金 / 1002 银行存款 /
-# 1012 其他货币资金）的明细科目，选中即入账到同名科目。
+# ------------------------------------------------ 付款方式 ↔ 货币资金大类
+# 付款方式下拉固定为货币资金**三大类**（1001 库存现金 / 1002 银行存款 /
+# 1012 其他货币资金），与收入日报支付来源一一对应；入账时按币种下钻明细科目。
 FUND_ROOT_CODES = ("1001", "1002", "1012")
+# 科目表未初始化 / 缺该一级科目时的默认名称（与收入日报支付来源一一对应）
+FUND_ROOT_NAMES = {"1001": "库存现金", "1002": "银行存款",
+                   "1012": "其他货币资金"}
 
 
 def _fund_root(code: str) -> str:
@@ -210,35 +213,22 @@ def _fund_root(code: str) -> str:
 
 
 def payment_account_options() -> list:
-    """付款方式下拉项：货币资金类科目的明细科目。
+    """付款方式下拉项：货币资金**三大类**（与收入日报的支付来源对齐）。
 
-    返回 [{'code','name','label','root'}]，label 含上级科目名（如 银行存款－基本户）。
-    科目表为空时回退 config.PAY_METHODS。
+      库存现金（1001） ← 收入来源「现钞」
+      银行存款（1002） ← 收入来源「银行卡」
+      其他货币资金（1012）← 收入来源「电子支付/扫码」
+
+    返回 [{'code','name','label','root'}]；名称取科目表里的一级科目名，
+    科目表未初始化时用默认名称。入账时再按币种下钻到该类的明细科目
+    （见 _currency_leaf：库存现金 + USD → 库存现金（USD））。
     """
     chart = load_chart_index()
     out = []
-    for code in sorted(chart):
-        root = _fund_root(code)
-        if not root:
-            continue
-        node = chart[code] or {}
-        if not node.get("is_leaf"):
-            continue
-        parent = (node.get("parent") or "").strip()
-        pname = (chart.get(parent, {}) or {}).get("name", "")
-        name = node.get("name") or code
-        label = f"{pname}－{name}" if pname and pname != name else name
-        out.append({"code": code, "name": name, "label": label, "root": root})
-    # 某类只有汇总科目（无明细）时，用汇总科目本身兜底
     for root in FUND_ROOT_CODES:
-        if any(o["root"] == root for o in out) or root not in chart:
-            continue
-        name = (chart[root] or {}).get("name") or root
+        node = chart.get(root) or {}
+        name = (node.get("name") or "").strip() or FUND_ROOT_NAMES.get(root, root)
         out.append({"code": root, "name": name, "label": name, "root": root})
-    if not out:      # 科目表未初始化
-        return [{"code": "", "name": m, "label": m, "root": ""}
-                for m in config.PAY_METHODS]
-    out.sort(key=lambda x: x["code"])
     return out
 
 

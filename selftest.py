@@ -522,18 +522,28 @@ def main():
           config.INCOME_CURRENCY_LABELS["Bs"] == "玻利瓦尔（Bs）",
           f"got={config.INCOME_CURRENCY_LABELS}")
 
-    print("== 6g. 付款方式 ↔ 货币资金明细科目 ==")
+    print("== 6g. 付款方式 ↔ 货币资金大类 ==")
     # 换一张干净的临时库：含默认科目表（1001 库存现金 / 1002 银行存款 / 1012 …）
     tmp_db2 = os.path.join(tempfile.mkdtemp(prefix="facturas_selftest2_"), "t.db")
     config.DB_PATH = tmp_db2
     database.init_db()
     opts = reports.payment_account_options()
-    check("付款方式取自科目表明细", bool(opts)
+    check("付款方式取自科目表", bool(opts)
           and all(o.get("name") for o in opts), f"got={opts}")
-    root_set = {o["root"] for o in opts}
-    check("覆盖 库存现金/银行存款/其他货币资金",
-          {"1001", "1002", "1012"} & root_set == {"1001", "1002", "1012"},
-          f"got={root_set}")
+    check("付款方式固定三大类（库存现金/银行存款/其他货币资金）",
+          [o["name"] for o in opts] == ["库存现金", "银行存款", "其他货币资金"]
+          and [o["root"] for o in opts] == ["1001", "1002", "1012"],
+          f"got={[o['name'] for o in opts]}")
+    check("与收入日报支付来源一一对应",
+          [config.income_account_key(s, "Bs") for s in
+           (config.INCOME_SOURCE_CASH, config.INCOME_SOURCE_CARD,
+            config.INCOME_SOURCE_EPAY)] == ["cash", "bank", "crypto"]
+          and [reports.resolve_account(reports.load_chart_index(), k) for k in
+               ("cash", "bank", "crypto")] == ["1001", "1002", "1012"],
+          f"got={[reports.resolve_account(reports.load_chart_index(), k) for k in ('cash', 'bank', 'crypto')]}")
+    check("旧明细文本（库存现金（Bs））仍归到 1001",
+          reports.resolve_payment_account("库存现金（Bs）") == "1001",
+          f"got={reports.resolve_payment_account('库存现金（Bs）')}")
     leaf = next((o for o in opts if o["root"] == "1002"), opts[0])
     check("同名科目精确匹配", reports.resolve_payment_account(leaf["name"])
           == leaf["code"], f"got={reports.resolve_payment_account(leaf['name'])}")
