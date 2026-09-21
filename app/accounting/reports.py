@@ -730,13 +730,19 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
     if date_to:
         span += f" hasta {date_to.strftime('%d/%m/%Y')}"
 
+    base_code = report.get("base_currency") or config.DEFAULT_BASE_CURRENCY
+
+    def fmt(v):
+        """金额按本位币符号显示（Bs → Bs.、USD → $、CNY → ¥、EUR → €）。"""
+        return format_amount(v, currency=base_code)
+
     src = report.get("sources") or {}
     sources_line = (
         f"数据来源：单据 {src.get('docs', 0)} 张 · "
         f"店铺收入日报 {src.get('income_rows', 0)} 笔"
-        f"（{format_amount(src.get('income_amount', 0.0))}） · "
+        f"（{fmt(src.get('income_amount', 0.0))}） · "
         f"店铺支出日报 {src.get('expense_rows', 0)} 笔"
-        f"（{format_amount(src.get('expense_amount', 0.0))}）")
+        f"（{fmt(src.get('expense_amount', 0.0))}）")
 
     doc = SimpleDocTemplate(out_path, pagesize=A4, rightMargin=15*mm,
                             leftMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)
@@ -764,12 +770,12 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
                 nm = "<b>%s</b>" % nm
             data.append([
                 Paragraph(r["code"], cell), Paragraph(nm, cell),
-                *[Paragraph(format_amount(r[k]), cell) for k in (
+                *[Paragraph(fmt(r[k]), cell) for k in (
                     "opening_debit", "opening_credit", "debit", "credit",
                     "ending_debit", "ending_credit")]])
         t = report.get("totals") or {}
         data.append([Paragraph("<b>合计</b>", cell), Paragraph("<b>（末级科目）</b>", cell),
-                     *[Paragraph("<b>%s</b>" % format_amount(t.get(k, 0.0)), cell)
+                     *[Paragraph("<b>%s</b>" % fmt(t.get(k, 0.0)), cell)
                        for k in ("opening_debit", "opening_credit", "debit",
                                  "credit", "ending_debit", "ending_credit")]])
         tb = Table(data, colWidths=[22*mm, 56*mm, 17*mm, 17*mm, 17*mm, 17*mm,
@@ -798,9 +804,9 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
             data = [[Paragraph("<b>%s</b>" % title, cell), ""]]
             for r in rows:
                 data.append([Paragraph(r["name"], cell),
-                             Paragraph(format_amount(r["amount"]), cell)])
+                             Paragraph(fmt(r["amount"]), cell)])
             data.append([Paragraph("<b>%s</b>" % total_label, cell),
-                         Paragraph("<b>%s</b>" % format_amount(total), cell)])
+                         Paragraph("<b>%s</b>" % fmt(total), cell)])
             return data
 
         all_rows = []
@@ -812,9 +818,9 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
                             sum(x["amount"] for x in report["patrimonio"]), "TOTAL PN 净资产合计")
         all_rows.append(["", ""])
         all_rows.append([Paragraph("<b>PASIVO + PN 负债与净资产合计</b>", cell),
-                         Paragraph("<b>%s</b>" % format_amount(report["total_pasivo_pat"]), cell)])
+                         Paragraph("<b>%s</b>" % fmt(report["total_pasivo_pat"]), cell)])
         all_rows.append([Paragraph(("✓ 平衡" if report["balanced"] else
-                                    f"✗ 不平衡（差额 {format_amount(report['diff'])}）"), cell), ""])
+                                    f"✗ 不平衡（差额 {fmt(report['diff'])}）"), cell), ""])
         t = Table(all_rows, colWidths=[110*mm, 60*mm])
         t.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -840,12 +846,12 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
             name = r["name"]
             if r.get("bold"):
                 name = "<b>%s</b>" % name
-            amt = format_amount(r["amount"])
+            amt = fmt(r["amount"])
             if r.get("bold"):
                 amt = "<b>%s</b>" % amt
             data.append([Paragraph(name, cell), Paragraph(amt, cell)])
         data.append([Paragraph("<b>IVA neto 增值税净额（负=应交）</b>", cell),
-                     Paragraph("<b>%s</b>" % format_amount(report["iva_neto"]), cell)])
+                     Paragraph("<b>%s</b>" % fmt(report["iva_neto"]), cell)])
         data.append([Paragraph("Nº documentos 单据数：venta %d / compra %d"
                                % (report["num_venta"], report["num_compra"]), cell), ""])
         t = Table(data, colWidths=[130*mm, 40*mm])

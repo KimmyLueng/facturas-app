@@ -23,8 +23,8 @@
 {% if sources %}
 <p class="muted">
   数据来源：单据 {{ sources.get('docs', 0) }} 张 ·
-  店铺收入日报 {{ sources.get('income_rows', 0) }} 笔（{{ sources.get('income_amount', 0) | money }}） ·
-  店铺支出日报 {{ sources.get('expense_rows', 0) }} 笔（{{ sources.get('expense_amount', 0) | money }}）
+  店铺收入日报 {{ sources.get('income_rows', 0) }} 笔（{{ sources.get('income_amount', 0) | money(base) }}） ·
+  店铺支出日报 {{ sources.get('expense_rows', 0) }} 笔（{{ sources.get('expense_amount', 0) | money(base) }}）
   —— 金额均为折算后的本位币
 </p>
 {% endif %}
@@ -34,20 +34,23 @@
 <table>
   <tr>
     <th>科目编码</th><th>科目名称</th>
-    <th class="num">期初借方</th><th class="num">期初贷方</th>
-    <th class="num">本期借方</th><th class="num">本期贷方</th>
-    <th class="num">期末借方</th><th class="num">期末贷方</th>
+    <th class="num">期初借方（{{ base | cur }}）</th>
+    <th class="num">期初贷方（{{ base | cur }}）</th>
+    <th class="num">本期借方（{{ base | cur }}）</th>
+    <th class="num">本期贷方（{{ base | cur }}）</th>
+    <th class="num">期末借方（{{ base | cur }}）</th>
+    <th class="num">期末贷方（{{ base | cur }}）</th>
   </tr>
   {% for r in trial.rows or [] %}
   <tr {% if r.is_parent %}class="section"{% endif %}>
     <td>{{ r.code }}</td>
     <td>{{ r.name }}</td>
-    <td class="num">{{ r.opening_debit | money }}</td>
-    <td class="num">{{ r.opening_credit | money }}</td>
-    <td class="num">{{ r.debit | money }}</td>
-    <td class="num">{{ r.credit | money }}</td>
-    <td class="num">{{ r.ending_debit | money }}</td>
-    <td class="num">{{ r.ending_credit | money }}</td>
+    <td class="num">{{ r.opening_debit | money(base) }}</td>
+    <td class="num">{{ r.opening_credit | money(base) }}</td>
+    <td class="num">{{ r.debit | money(base) }}</td>
+    <td class="num">{{ r.credit | money(base) }}</td>
+    <td class="num">{{ r.ending_debit | money(base) }}</td>
+    <td class="num">{{ r.ending_credit | money(base) }}</td>
   </tr>
   {% else %}
   <tr><td colspan="8" class="empty">暂无科目数据</td></tr>
@@ -55,12 +58,12 @@
   {% if trial.rows %}
   <tr class="section">
     <td>合计</td><td>（末级科目）</td>
-    <td class="num">{{ (trial.totals or {}).get('opening_debit', 0) | money }}</td>
-    <td class="num">{{ (trial.totals or {}).get('opening_credit', 0) | money }}</td>
-    <td class="num">{{ (trial.totals or {}).get('debit', 0) | money }}</td>
-    <td class="num">{{ (trial.totals or {}).get('credit', 0) | money }}</td>
-    <td class="num">{{ (trial.totals or {}).get('ending_debit', 0) | money }}</td>
-    <td class="num">{{ (trial.totals or {}).get('ending_credit', 0) | money }}</td>
+    <td class="num">{{ (trial.totals or {}).get('opening_debit', 0) | money(base) }}</td>
+    <td class="num">{{ (trial.totals or {}).get('opening_credit', 0) | money(base) }}</td>
+    <td class="num">{{ (trial.totals or {}).get('debit', 0) | money(base) }}</td>
+    <td class="num">{{ (trial.totals or {}).get('credit', 0) | money(base) }}</td>
+    <td class="num">{{ (trial.totals or {}).get('ending_debit', 0) | money(base) }}</td>
+    <td class="num">{{ (trial.totals or {}).get('ending_credit', 0) | money(base) }}</td>
   </tr>
   {% endif %}
 </table>
@@ -68,14 +71,14 @@
 {% else %}
 <div class="table-wrap">
 <table>
-  <tr><th>项目</th><th class="num">金额（本位币）</th></tr>
+  <tr><th>项目</th><th class="num">金额（本位币 {{ base | cur }}）</th></tr>
   {% for r in rows %}
     {% if r.kind == 'section' %}
     <tr class="section"><td colspan="2">{{ r.label }}</td></tr>
     {% else %}
     <tr>
       <td class="indent-{{ [r.depth, 3] | min }}">{{ r.label }}</td>
-      <td class="num">{{ r.value | money }}</td>
+      <td class="num">{{ r.value | money(base) }}</td>
     </tr>
     {% endif %}
   {% else %}

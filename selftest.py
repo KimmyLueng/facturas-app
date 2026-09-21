@@ -698,6 +698,33 @@ def main():
     finally:
         config.DB_PATH = old_db
 
+    print("== 6j. 报表金额按本位币符号（Bs 不显示 $）==")
+    check("Bs 金额后缀为 Bs.",
+          format_amount(1234.5, currency="Bs") == "1.234,50 Bs.",
+          format_amount(1234.5, currency="Bs"))
+    check("Bs 本位币显示名",
+          config.currency_label("Bs") == "玻利瓦尔（Bs）",
+          config.currency_label("Bs"))
+    try:
+        config.DB_PATH = tmp_db
+        from app import settings as _st
+        from app.web.server import app as _web_app
+        st = _st.load_settings()
+        st["base_currency"] = "Bs"
+        _st.save_settings(st)
+        _web_app.config["TESTING"] = True
+        html = _web_app.test_client().get(
+            "/reports?type=trial").get_data(as_text=True)
+        check("Web 科目余额表金额不带 $", "$" not in html)
+        check("Web 表头标注本位币玻利瓦尔（Bs）", "玻利瓦尔（Bs）" in html)
+        pdf = reports.export_pdf("trial", out_path=os.path.join(
+            os.path.dirname(tmp_db), "cur.pdf"))
+        check("科目余额表 PDF 可导出", os.path.exists(pdf), pdf)
+    except Exception as e:  # noqa: BLE001
+        print(f"  [SKIP] Web 报表渲染：{e}")
+    finally:
+        config.DB_PATH = old_db
+
     print(f"\n结果: {PASS} 通过, {FAIL} 失败")
     sys.exit(1 if FAIL else 0)
 

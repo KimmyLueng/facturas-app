@@ -120,25 +120,34 @@ class ReportsPage:
         if note:
             messagebox.showinfo("币种提示", note, parent=self.frame)
 
-    # ------------------------------------------------------------ 表格列
+    # ------------------------------------------------------------ 金额与本位币
+    def _base_code(self) -> str:
+        """本位币代码（报表尚未生成时取设置里的本位币）。"""
+        rep = self.report or {}
+        return (rep.get("base_currency")
+                or (self.app.state.settings.get("base_currency")
+                    if self.app and self.app.state else "")
+                or config.DEFAULT_BASE_CURRENCY)
+
+    def _fmt(self, value) -> str:
+        """按本位币符号格式化（Bs → Bs.、USD → $、CNY → ¥、EUR → €）。"""
+        return format_amount(value, currency=self._base_code())
+
+    def _base_cur(self) -> str:
+        """本位币显示名，如「玻利瓦尔（Bs）」。"""
+        return config.currency_label(self._base_code())
+
     def _src_text(self) -> str:
         """数据来源说明：单据 + 店铺收入/支出日报（模块关联）。"""
         s = (self.report or {}).get("sources") or {}
         parts = [f"{s.get('docs', len(self.docs))} 张单据"]
         if s.get("income_rows"):
             parts.append(f"收入日报 {s['income_rows']} 笔"
-                         f" {format_amount(s.get('income_amount', 0.0))}")
+                         f" {self._fmt(s.get('income_amount', 0.0))}")
         if s.get("expense_rows"):
             parts.append(f"支出日报 {s['expense_rows']} 笔"
-                         f" {format_amount(s.get('expense_amount', 0.0))}")
+                         f" {self._fmt(s.get('expense_amount', 0.0))}")
         return " · ".join(parts)
-
-    def _base_cur(self) -> str:
-        """本位币显示名（报表尚未生成时取设置里的本位币）。"""
-        rep = self.report or {}
-        return config.currency_label(
-            rep.get("base_currency")
-            or self.app.state.settings.get("base_currency", "USD"))
 
     def _two_cols(self) -> list:
         """资产负债表 / 利润表：项目 + 金额两列。"""
@@ -147,14 +156,15 @@ class ReportsPage:
 
     def _trial_cols(self) -> list:
         """科目余额表：科目 + 期初/本期/期末 借贷六列。"""
+        cur = self._base_cur()
         return [("code", "科目编码", 100, "w"),
                 ("name", "科目名称", 260, "w"),
-                ("opening_debit", "期初借方", 105, "e"),
-                ("opening_credit", "期初贷方", 105, "e"),
-                ("debit", "本期借方", 105, "e"),
-                ("credit", "本期贷方", 105, "e"),
-                ("ending_debit", "期末借方", 105, "e"),
-                ("ending_credit", "期末贷方", 105, "e")]
+                ("opening_debit", f"期初借方（{cur}）", 130, "e"),
+                ("opening_credit", f"期初贷方（{cur}）", 130, "e"),
+                ("debit", f"本期借方（{cur}）", 130, "e"),
+                ("credit", f"本期贷方（{cur}）", 130, "e"),
+                ("ending_debit", f"期末借方（{cur}）", 130, "e"),
+                ("ending_credit", f"期末贷方（{cur}）", 130, "e")]
 
     def _setup_cols(self, cols):
         ids = [c[0] for c in cols]
@@ -176,17 +186,17 @@ class ReportsPage:
             tag = "bold" if row.get("is_parent") else ""
             self.tree.insert("", "end", values=(
                 row.get("code") or "", row.get("name") or "",
-                *[format_amount(row.get(k, 0.0)) for k in keys]), tags=(tag,))
+                *[self._fmt(row.get(k, 0.0)) for k in keys]), tags=(tag,))
         t = self.report.get("totals") or {}
         self.tree.insert("", "end", values=(
-            "合计", "（末级科目合计）", *[format_amount(t.get(k, 0.0)) for k in keys]),
+            "合计", "（末级科目合计）", *[self._fmt(t.get(k, 0.0)) for k in keys]),
             tags=("sub",))
         n = len(self.report.get("rows", []))
         self.summary_var.set(
-            f"科目余额表：{n} 个科目 · 本期借方 {format_amount(t.get('debit', 0.0))} "
-            f"/ 贷方 {format_amount(t.get('credit', 0.0))} · "
-            f"期末借方 {format_amount(t.get('ending_debit', 0.0))} "
-            f"/ 贷方 {format_amount(t.get('ending_credit', 0.0))} · "
+            f"科目余额表：{n} 个科目 · 本期借方 {self._fmt(t.get('debit', 0.0))} "
+            f"/ 贷方 {self._fmt(t.get('credit', 0.0))} · "
+            f"期末借方 {self._fmt(t.get('ending_debit', 0.0))} "
+            f"/ 贷方 {self._fmt(t.get('ending_credit', 0.0))} · "
             f"{self._src_text()}" +
             (f"\n{self.report.get('currency_note') or ''}"
              if self.report.get("currency_note") else ""))
@@ -205,16 +215,16 @@ class ReportsPage:
             self.tree.insert("", "end", values=(
                 "──────────────────────────────────────", ""))
             self.tree.insert("", "end", values=(
-                "TOTAL ACTIVO · 资产合计", format_amount(r["total_activo"])))
+                "TOTAL ACTIVO · 资产合计", self._fmt(r["total_activo"])))
             self.tree.insert("", "end", values=(
                 "TOTAL PASIVO + PN · 负债与净资产合计",
-                format_amount(r["total_pasivo_pat"])))
+                self._fmt(r["total_pasivo_pat"])))
             ok = r["balanced"]
             note = r.get("currency_note") or ""
             self.summary_var.set(
                 ("✔ 资产负债表平衡" if ok else
-                 f"✗ 资产负债表不平衡，差额 {format_amount(r['diff'])}") +
-                f" · 资产合计 {format_amount(r['total_activo'])} · " +
+                 f"✗ 资产负债表不平衡，差额 {self._fmt(r['diff'])}") +
+                f" · 资产合计 {self._fmt(r['total_activo'])} · " +
                 f"{self._src_text()}" +
                 (f"\n{note}" if note else ""))
         else:
@@ -224,14 +234,14 @@ class ReportsPage:
                 tag = "bold" if row.get("bold") else ""
                 self.tree.insert("", "end", values=(
                     (" " * (row.get("indent", 0) * 2)) + row["name"],
-                    format_amount(row["amount"])), tags=(tag,))
+                    self._fmt(row["amount"])), tags=(tag,))
             self.tree.insert("", "end", values=(
-                "IVA neto（负=应交，正=可抵/退）", format_amount(r["iva_neto"])))
+                "IVA neto（负=应交，正=可抵/退）", self._fmt(r["iva_neto"])))
             self.tree.tag_configure("bold", font=("Microsoft YaHei UI", 10, "bold"))
             note = r.get("currency_note") or ""
             self.summary_var.set(
-                f"收入 {format_amount(r['ventas'])} · 成本 {format_amount(r['coste'])} · "
-                f"净利润 {format_amount(r['resultado'])} · "
+                f"收入 {self._fmt(r['ventas'])} · 成本 {self._fmt(r['coste'])} · "
+                f"净利润 {self._fmt(r['resultado'])} · "
                 f"出货 {r['num_venta']} 张 / 进货 {r['num_compra']} 张 · "
                 f"{self._src_text()}" +
                 (f"\n{note}" if note else ""))
@@ -241,9 +251,9 @@ class ReportsPage:
         total = sum(x["amount"] for x in rows)
         for x in rows:
             self.tree.insert("", "end", values=(
-                "    " + x["name"], format_amount(x["amount"])))
+                "    " + x["name"], self._fmt(x["amount"])))
         self.tree.insert("", "end", values=(
-            "    小计", format_amount(total)), tags=("sub",))
+            "    小计", self._fmt(total)), tags=("sub",))
         self.tree.tag_configure("sub", foreground="#1f6feb")
 
     # ------------------------------------------------------------ 导出
