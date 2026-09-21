@@ -115,7 +115,8 @@ class ReportsPage:
         year = self.report.get("year")
         self.src_var.set(
             f"期初来源：{self.report.get('opening_source') or '—'}"
-            + (f" · 会计年度 {year}" if year else ""))
+            + (f" · 会计年度 {year}" if year else "")
+            + " · 金额为原币（按科目币种明细入账，不换算、不带货币符号）")
         note = self.report.get("currency_note") or ""
         if note:
             messagebox.showinfo("币种提示", note, parent=self.frame)
@@ -130,8 +131,8 @@ class ReportsPage:
                 or config.DEFAULT_BASE_CURRENCY)
 
     def _fmt(self, value) -> str:
-        """按本位币符号格式化（Bs → Bs.、USD → $、CNY → ¥、EUR → €）。"""
-        return format_amount(value, currency=self._base_code())
+        """报表金额只显示数字，不跟货币符号。"""
+        return format_amount(value, symbols=False)
 
     def _base_cur(self) -> str:
         """本位币显示名，如「玻利瓦尔（Bs）」。"""
@@ -150,21 +151,20 @@ class ReportsPage:
         return " · ".join(parts)
 
     def _two_cols(self) -> list:
-        """资产负债表 / 利润表：项目 + 金额两列。"""
+        """资产负债表 / 利润表：项目 + 金额两列（金额不跟货币符号）。"""
         return [("name", "项目", 560, "w"),
-                ("amount", f"金额（本位币 {self._base_cur()}）", 200, "e")]
+                ("amount", "金额", 200, "e")]
 
     def _trial_cols(self) -> list:
-        """科目余额表：科目 + 期初/本期/期末 借贷六列。"""
-        cur = self._base_cur()
+        """科目余额表：科目 + 期初/本期/期末 借贷六列（金额不跟货币符号）。"""
         return [("code", "科目编码", 100, "w"),
-                ("name", "科目名称", 260, "w"),
-                ("opening_debit", f"期初借方（{cur}）", 130, "e"),
-                ("opening_credit", f"期初贷方（{cur}）", 130, "e"),
-                ("debit", f"本期借方（{cur}）", 130, "e"),
-                ("credit", f"本期贷方（{cur}）", 130, "e"),
-                ("ending_debit", f"期末借方（{cur}）", 130, "e"),
-                ("ending_credit", f"期末贷方（{cur}）", 130, "e")]
+                ("name", "科目名称", 300, "w"),
+                ("opening_debit", "期初借方", 120, "e"),
+                ("opening_credit", "期初贷方", 120, "e"),
+                ("debit", "本期借方", 120, "e"),
+                ("credit", "本期贷方", 120, "e"),
+                ("ending_debit", "期末借方", 120, "e"),
+                ("ending_credit", "期末贷方", 120, "e")]
 
     def _setup_cols(self, cols):
         ids = [c[0] for c in cols]

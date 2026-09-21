@@ -36,9 +36,12 @@ def parse_amount(text: str) -> float:
     return -v if neg else v
 
 
-def format_amount(value: float, decimals: int = 2, currency: str = None) -> str:
-    """格式化为西班牙语金额："1.234,56 $"。
+def format_amount(value: float, decimals: int = 2, currency: str = None,
+                  symbols: bool = True) -> str:
+    """格式化为西班牙语金额："1.234,56 $"/"1.234,56 Bs."。
 
+    symbols=False 时只输出数字（"1.234,56"），用于财务报表（各科目币种不同，
+    金额后不跟货币符号）。
     currency 指定币种时显示对应符号（CNY→¥、EUR→€、Bs/VES→Bs.），默认 $。
     """
     if value is None:
@@ -46,6 +49,8 @@ def format_amount(value: float, decimals: int = 2, currency: str = None) -> str:
     s = f"{value:,.{decimals}f}"
     # 转西班牙语：千分位 . 小数 ,
     s = s.replace(",", "X").replace(".", ",").replace("X", ".")
+    if not symbols:
+        return s
     symbol = config.CURRENCY_SYMBOLS.get(str(currency or "").upper(), "$")
     return f"{s} {symbol}"
 

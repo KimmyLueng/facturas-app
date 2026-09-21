@@ -585,12 +585,16 @@ def main():
     st = settings_mod.load_settings()
     st["base_currency"] = "USD"
     settings_mod.save_settings(st)
+    # 模拟用户的科目表：库存现金（Bs）100101 / 库存现金（USD）100102
+    for _code, _name in (("100101", "Bs"), ("100102", "USD")):
+        database.save_chart_of_account({"code": _code, "name": _name,
+                                        "direction": "借", "is_leaf": 1})
     iid = database.get_or_create_daily_income("2026-09-01", "")
     database.add_daily_income_row(iid, {
         "store": "A店", "source": config.INCOME_SOURCE_CASH,
-        "currency": "USD", "amount": 100, "notes": ""})
+        "currency": "Bs", "amount": 100, "notes": ""})
     database.add_daily_income_row(iid, {
-        "store": "B店", "source": config.INCOME_SOURCE_EPAY,
+        "store": "B店", "source": config.INCOME_SOURCE_CASH,
         "currency": "USD", "amount": 300, "notes": ""})
     for _cat, _amt in (("工资", 200), ("水电费", 60)):
         database.save_daily_expense_item({
@@ -601,17 +605,21 @@ def main():
     check("收入 2 笔 / 支出 2 笔生成 8 条分录",
           stats["income_count"] == 2 and stats["expense_count"] == 2
           and len(entries) == 8, f"got={stats} n={len(entries)}")
-    check("金额折算本位币（收入 400 / 支出 260）",
+    check("金额按原币入账、不折算（收入 400 / 支出 260）",
           abs(stats["income_amount"] - 400) < 0.01
           and abs(stats["expense_amount"] - 260) < 0.01 and not un,
           f"got={stats} un={un}")
     docs = database.list_documents()
     tr = reports.build_trial_balance(docs, 0.0, entries=entries)
     by_code = {r["code"]: r for r in tr["rows"]}
-    check("收入日报：库存现金借 100 + 主营业务收入贷 400",
-          abs(by_code["1001"]["debit"] - 100) < 0.01
+    check("收入日报按币种记明细科目（Bs→100101 借 100 / USD→100102 借 300）",
+          abs(by_code["100101"]["debit"] - 100) < 0.01
+          and abs(by_code["100102"]["debit"] - 300) < 0.01
           and abs(by_code["5001"]["credit"] - 400) < 0.01,
-          f"cash={by_code['1001']} sales={by_code['5001']}")
+          f"bs={by_code.get('100101')} usd={by_code.get('100102')}")
+    check("支出日报按付款方式币种记明细（USD→100102 贷 260）",
+          abs(by_code["100102"]["credit"] - 260) < 0.01,
+          f"got={by_code.get('100102')}")
     check("支出日报落到费用末级科目（工资 / 水电）",
           any(r["code"].startswith("5602") and r["debit"] > 0
               and not r["is_parent"] for r in tr["rows"]),
@@ -698,7 +706,10 @@ def main():
     finally:
         config.DB_PATH = old_db
 
-    print("== 6j. 报表金额按本位币符号（Bs 不显示 $）==")
+    print("== 6j. 报表金额不跟货币符号 ==")
+    check("报表金额只输出数字（1.234,50）",
+          format_amount(1234.5, symbols=False) == "1.234,50",
+          format_amount(1234.5, symbols=False))
     check("Bs 金额后缀为 Bs.",
           format_amount(1234.5, currency="Bs") == "1.234,50 Bs.",
           format_amount(1234.5, currency="Bs"))
@@ -716,7 +727,9 @@ def main():
         html = _web_app.test_client().get(
             "/reports?type=trial").get_data(as_text=True)
         check("Web 科目余额表金额不带 $", "$" not in html)
-        check("Web 表头标注本位币玻利瓦尔（Bs）", "玻利瓦尔（Bs）" in html)
+        check("Web 表头不再标注币种",
+              '<th class="num">期初借方</th>' in html
+              and '<th class="num">期初借方（' not in html)
         pdf = reports.export_pdf("trial", out_path=os.path.join(
             os.path.dirname(tmp_db), "cur.pdf"))
         check("科目余额表 PDF 可导出", os.path.exists(pdf), pdf)

@@ -567,16 +567,56 @@ def build_trial_balance(docs, capital=0.0, year=None, entries=None) -> dict:
             "opening_source": opening_source(year, capital)}
 
 
+def _currency_words(currency) -> list:
+    """币种的识别词（代码 / 中文名 / 旧代码），用于匹配按币种命名的明细科目。"""
+    cur = config.normalize_currency(currency) or ""
+    if not cur:
+        return []
+    words = {cur.upper()}
+    zh = config.CURRENCY_ZH.get(cur)
+    if zh:
+        words.add(zh.upper())
+    if cur == "Bs":
+        words.update({"VES", "VED", "玻利瓦尔"})
+    if cur == "USDT":
+        words.add("泰达币")
+    return [w for w in words if w]
+
+
+def _currency_leaf(chart: dict, code: str, currency) -> str:
+    """货币资金科目按币种选明细叶子。
+
+    例如 1001 库存现金 → 100101 库存现金（Bs）/ 100102 库存现金（USD）；
+    匹配不到币种明细时回退该科目下的第一个末级科目。
+    """
+    if not code or code not in chart:
+        return code
+    words = _currency_words(currency)
+    leaves = [c for c in chart
+              if c.startswith(code) and not _child_codes(chart, c)]
+    if not leaves:
+        return code
+    for c in sorted(leaves):
+        nm = str((chart.get(c) or {}).get("name") or "").strip().upper()
+        if not nm:
+            continue
+        if nm in words or any(w and w in nm for w in words):
+            return c
+    return _leaf_account(chart, code)
+
+
 def daily_book_entries(date_from=None, date_to=None, settings: dict = None):
-    """把「店铺收入日报 + 店铺支出日报」折算成本位币并生成报表分录。
+    """把「店铺收入日报 + 店铺支出日报」生成报表分录。
 
     模块关联：这两个模块不生成单据，以前进不了财务报表，现在按下列口径入账：
 
-      收入日报：借 货币资金（支付方式+币种 → 库存现金/银行存款/其他货币资金）
+      收入日报：借 货币资金（支付方式+币种 → 库存现金/银行存款/其他货币资金
+                  的币种明细，如 库存现金（Bs）/ 库存现金（USD））
                贷 主营业务收入
       支出日报：借 费用科目（费用类别 → 工资/福利/水电/租赁/税金/其他）
                贷 货币资金（付款方式对应的明细科目）
 
+    说明：金额按**原币入账，不做汇率折算**（Bs 记 Bs 明细科目、USD 记 USD 明细科目）。
     返回 (entries, stats, unconverted)。
     """
     settings = settings if settings is not None else load_settings()
@@ -602,16 +642,13 @@ def daily_book_entries(date_from=None, date_to=None, settings: dict = None):
         if not amt:
             continue
         cur = config.normalize_currency(r.get("currency")) or config.DEFAULT_BASE_CURRENCY
-        base_amt, ok = convert_to_base(amt, cur, settings)
-        if not ok:
-            unconverted.append(
-                f"收入 {r.get('date') or ''} {r.get('store') or ''}".strip())
-        fund_acc = resolve_account(
+        fund_root = resolve_account(
             chart, config.income_account_key(r.get("source"), cur))
-        entries.append((fund_acc, base_amt))      # 借：货币资金
-        entries.append((sales_acc, -base_amt))    # 贷：主营业务收入
+        fund_acc = _currency_leaf(chart, fund_root, cur)
+        entries.append((fund_acc, amt))           # 借：货币资金（按币种明细）
+        entries.append((sales_acc, -amt))         # 贷：主营业务收入
         stats["income_count"] += 1
-        stats["income_amount"] += base_amt
+        stats["income_amount"] += amt
 
     try:
         expense_rows = database.list_daily_expense_items(d_from, d_to)
@@ -622,22 +659,19 @@ def daily_book_entries(date_from=None, date_to=None, settings: dict = None):
         if not amt:
             continue
         cur = config.normalize_currency(r.get("currency")) or config.DEFAULT_BASE_CURRENCY
-        base_amt, ok = convert_to_base(amt, cur, settings)
-        if not ok:
-            unconverted.append(
-                f"支出 {r.get('date') or ''} {r.get('summary') or ''}".strip())
         exp_acc = resolve_expense_account(
             chart, r.get("category"),
             database.expense_category_label(r.get("category")))
-        pay_acc = resolve_payment_account(r.get("method"))
-        if not pay_acc:
+        pay_root = resolve_payment_account(r.get("method"))
+        if not pay_root:
             channel = payment_channel(r.get("method"))
-            pay_acc = resolve_account(
+            pay_root = resolve_account(
                 chart, channel if channel in ("cash", "bank") else "cash")
-        entries.append((exp_acc, base_amt))       # 借：费用
-        entries.append((pay_acc, -base_amt))      # 贷：货币资金
+        pay_acc = _currency_leaf(chart, pay_root, cur)
+        entries.append((exp_acc, amt))            # 借：费用
+        entries.append((pay_acc, -amt))           # 贷：货币资金（按币种明细）
         stats["expense_count"] += 1
-        stats["expense_amount"] += base_amt
+        stats["expense_amount"] += amt
 
     return entries, stats, unconverted
 
@@ -730,11 +764,9 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
     if date_to:
         span += f" hasta {date_to.strftime('%d/%m/%Y')}"
 
-    base_code = report.get("base_currency") or config.DEFAULT_BASE_CURRENCY
-
     def fmt(v):
-        """金额按本位币符号显示（Bs → Bs.、USD → $、CNY → ¥、EUR → €）。"""
-        return format_amount(v, currency=base_code)
+        """报表金额只显示数字，不跟货币符号（各科目币种可能不同）。"""
+        return format_amount(v, symbols=False)
 
     src = report.get("sources") or {}
     sources_line = (
@@ -754,7 +786,8 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
             story.append(Paragraph(f"期初来源：{report['opening_source']}", h2))
         if report.get("base_currency"):
             story.append(Paragraph(
-                f"币种：本位币 {config.currency_label(report['base_currency'])}", h2))
+                "金额按各科目币种明细列示（如 库存现金（Bs）/（USD）），"
+                "不换算、不显示货币符号", h2))
         if report.get("currency_note"):
             story.append(Paragraph(report["currency_note"], h2))
         if sources_line:
@@ -793,7 +826,8 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
             story.append(Paragraph(f"期初来源：{report['opening_source']}", h2))
         if report.get("base_currency"):
             story.append(Paragraph(
-                f"币种：本位币 {config.currency_label(report['base_currency'])}", h2))
+                "金额按各科目币种明细列示（如 库存现金（Bs）/（USD）），"
+                "不换算、不显示货币符号", h2))
         if report.get("currency_note"):
             story.append(Paragraph(report["currency_note"], h2))
         if sources_line:
@@ -835,7 +869,8 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
             story.append(Paragraph(f"期初来源：{report['opening_source']}", h2))
         if report.get("base_currency"):
             story.append(Paragraph(
-                f"币种：本位币 {config.currency_label(report['base_currency'])}", h2))
+                "金额按各科目币种明细列示（如 库存现金（Bs）/（USD）），"
+                "不换算、不显示货币符号", h2))
         if report.get("currency_note"):
             story.append(Paragraph(report["currency_note"], h2))
         if sources_line:

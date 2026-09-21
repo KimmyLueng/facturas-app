@@ -25,6 +25,9 @@ from app.utils import date_iso, format_amount, parse_amount, parse_date
 app = Flask(__name__)
 app.jinja_env.filters["money"] = lambda v, cur=None: format_amount(
     float(v or 0), currency=cur)
+# 报表金额：只显示数字，不跟货币符号（各科目币种可能不同）
+app.jinja_env.filters["num"] = lambda v: format_amount(float(v or 0),
+                                                       symbols=False)
 # 币种统一显示「中文名称（简称）」，模板里：{{ d.currency | cur }}
 app.jinja_env.filters["cur"] = lambda v: config.currency_label(v) or (v or "")
 
@@ -325,12 +328,9 @@ def reports():
             rows = _report_rows(data or {})
     except Exception as e:  # noqa: BLE001
         error = str(e)
-    base = ((trial or {}).get("base_currency")
-            or settings_mod.load_settings().get("base_currency")
-            or config.DEFAULT_BASE_CURRENCY)
     return render_template("reports.html", active="reports", rtype=rtype,
                            rows=rows, error=error, frm=frm, to=to, trial=trial,
-                           sources=src, base=base)
+                           sources=src)
 
 
 # ------------------------------------------------------------------ 设置
