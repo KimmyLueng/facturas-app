@@ -55,6 +55,25 @@ def format_amount(value: float, decimals: int = 2, currency: str = None,
     return f"{s} {symbol}"
 
 
+def base_currency_code() -> str:
+    """设置里的本位币代码（缺省 config.DEFAULT_BASE_CURRENCY）。"""
+    try:
+        from app import settings
+        return ((settings.load_settings() or {}).get("base_currency")
+                or config.DEFAULT_BASE_CURRENCY)
+    except Exception:  # noqa: BLE001
+        return config.DEFAULT_BASE_CURRENCY
+
+
+def format_base_amount(value: float, decimals: int = 2) -> str:
+    """金额 + **本位币符号**，用于没有币种列的场景（如商品成本价 / 售价）。
+
+    本位币为 Bs 时显示 "1.234,50 Bs."，不会再误显示成 "$"。
+    """
+    return format_amount(value, decimals=decimals,
+                         currency=base_currency_code())
+
+
 # ---------------------------------------------------------------- 日期解析
 def parse_date(text: str):
     """解析日期，优先支持 yyyy-mm-dd / yyyy/mm/dd，也支持 dd/mm/yyyy 等西班牙语格式。"""

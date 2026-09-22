@@ -5,7 +5,8 @@ from tkinter import ttk, messagebox
 
 from app import config
 from app.db import database
-from app.utils import format_amount, parse_amount, date_iso
+from app.utils import (format_amount, format_base_amount, parse_amount,
+                       date_iso)
 
 
 class ProductsPage:
@@ -108,10 +109,10 @@ class ProductsPage:
                                  p["code"] or "-", p["barcode"] or "-",
                                  p["name"], p["category"] or "-",
                                  p["unit"] or "-",
-                                 format_amount(p["cost_price"]),
-                                 format_amount(p["sale_price"]),
-                                 format_amount(p["stock_qty"]),
-                                 format_amount(p["min_stock"]),
+                                 format_base_amount(p["cost_price"]),
+                                 format_base_amount(p["sale_price"]),
+                                 format_amount(p["stock_qty"], symbols=False),
+                                 format_amount(p["min_stock"], symbols=False),
                                  p["supplier"] or "-",
                              ))
 
@@ -123,10 +124,10 @@ class ProductsPage:
                                  p["code"] or "-", p["barcode"] or "-",
                                  p["name"], p["category"] or "-",
                                  p["unit"] or "-",
-                                 format_amount(p["cost_price"]),
-                                 format_amount(p["sale_price"]),
-                                 format_amount(p["stock_qty"]),
-                                 format_amount(p["min_stock"]),
+                                 format_base_amount(p["cost_price"]),
+                                 format_base_amount(p["sale_price"]),
+                                 format_amount(p["stock_qty"], symbols=False),
+                                 format_amount(p["min_stock"], symbols=False),
                                  p["supplier"] or "-",
                              ))
         self.status.config(text=f"低库存商品 {len(database.low_stock_products())} 件",
@@ -212,7 +213,8 @@ class ProductsPage:
         win.transient(self.frame)
         win.grab_set()
 
-        ttk.Label(win, text=f"当前库存：{format_amount(p['stock_qty'])}").grid(
+        ttk.Label(win, text=f"当前库存："
+                            f"{format_amount(p['stock_qty'], symbols=False)}").grid(
             row=0, column=0, columnspan=2, sticky="w", padx=12, pady=8)
         ttk.Label(win, text="变动量（正=入库，负=出库）：").grid(
             row=1, column=0, sticky="w", padx=12, pady=4)

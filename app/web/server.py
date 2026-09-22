@@ -20,7 +20,8 @@ from app import settings as settings_mod
 from app.accounting import reports as reports_mod
 from app.db import database
 from app.sync import manager as sync_mgr
-from app.utils import date_iso, format_amount, parse_amount, parse_date
+from app.utils import (date_iso, format_amount, format_base_amount,
+                       parse_amount, parse_date)
 
 app = Flask(__name__)
 app.jinja_env.filters["money"] = lambda v, cur=None: format_amount(
@@ -30,6 +31,9 @@ app.jinja_env.filters["num"] = lambda v: format_amount(float(v or 0),
                                                        symbols=False)
 # 币种统一显示「中文名称（简称）」，模板里：{{ d.currency | cur }}
 app.jinja_env.filters["cur"] = lambda v: config.currency_label(v) or (v or "")
+# 无币种列的金额（商品价格）：带本位币符号，如 "1.234,50 Bs."
+app.jinja_env.filters["basemoney"] = lambda v: format_base_amount(
+    float(v or 0))
 
 NAV = [
     ("dashboard", "概览"),

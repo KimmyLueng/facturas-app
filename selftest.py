@@ -11,7 +11,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app.ocr.parser import (  # noqa: E402
     parse_document, detect_currency, detect_exchange_rate)
 from app.utils import (  # noqa: E402
-    parse_amount, parse_date, parse_document_number, format_amount)
+    parse_amount, parse_date, parse_document_number, format_amount,
+    format_base_amount)
 from app import config  # noqa: E402
 from app.db import database  # noqa: E402
 from app.rates import convert_to_base  # noqa: E402
@@ -738,6 +739,9 @@ def main():
         st["base_currency"] = "Bs"
         _st.save_settings(st)
         _web_app.config["TESTING"] = True
+        check("商品价格带本位币符号 Bs.（不再显示 $）",
+              format_base_amount(1234.5) == "1.234,50 Bs.",
+              f"got={format_base_amount(1234.5)}")
         html = _web_app.test_client().get(
             "/reports?type=trial").get_data(as_text=True)
         check("Web 科目余额表金额不带 $", "$" not in html)
@@ -749,7 +753,8 @@ def main():
         check("科目余额表 PDF 可导出", os.path.exists(pdf), pdf)
         cli = _web_app.test_client()
         for path, name in (("/", "经营概览"), ("/documents", "单据管理"),
-                           ("/income", "店铺收入日报"), ("/expense", "店铺支出日报")):
+                           ("/income", "店铺收入日报"), ("/expense", "店铺支出日报"),
+                           ("/products", "商品库存")):
             page = cli.get(path).get_data(as_text=True)
             check(f"Web {name} 金额不带 $", "$" not in page,
                   f"got={[l for l in page.splitlines() if '$' in l][:2]}")
