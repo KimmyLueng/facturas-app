@@ -115,8 +115,9 @@ class DocumentsPage:
                 d["doc_number"] or "-", d["date"] or "-",
                 d.get("store") or "-", d["partner_name"] or "-",
                 config.currency_label(d.get("currency")) or d.get("currency") or "-",
-                format_amount(d["base"]), format_amount(d["iva_amount"]),
-                format_amount(d["total"])),
+                format_amount(d["base"], symbols=False),
+                format_amount(d["iva_amount"], symbols=False),
+                format_amount(d["total"], symbols=False)),
                 tags=("ok" if ok else "pending",))
         self.status_var.set(f"共 {len(docs)} 张单据    待审核 {pending_cnt} 张")
 
@@ -330,10 +331,11 @@ class DocumentsPage:
             for it in items:
                 itree.insert("", "end", values=(
                     it.get("code", ""), it.get("desc", ""), it.get("qty", 1),
-                    it.get("um", ""), format_amount(it.get("unit_price", 0)),
+                    it.get("um", ""),
+                    format_amount(it.get("unit_price", 0), symbols=False),
                     it.get("discount", 0) or 0,
-                    format_amount(it.get("amount", 0)),
-                    format_amount(it.get("neto", 0) or 0)))
+                    format_amount(it.get("amount", 0), symbols=False),
+                    format_amount(it.get("neto", 0) or 0, symbols=False)))
         fill_items()
 
         def edit_row(event=None):
@@ -449,9 +451,12 @@ class DocumentsPage:
             f"日期: {doc['date']}",
             f"供应商/客户: {doc['partner_name']}    NIF: {doc['tax_id']}",
             f"币种: {config.currency_label(cur) or cur}" + (
-                f"    单据汇率(1 USD = X): {format_amount(er)}" if er else ""),
-            f"Base: {format_amount(doc['base'])}    IVA {doc['iva_rate']}%: {format_amount(doc['iva_amount'])}",
-            f"Total: {format_amount(doc['total'])}",
+                f"    单据汇率(1 USD = X): {format_amount(er, symbols=False)}"
+                if er else ""),
+            f"Base: {format_amount(doc['base'], symbols=False)}"
+            f"    IVA {doc['iva_rate']}%: "
+            f"{format_amount(doc['iva_amount'], symbols=False)}",
+            f"Total: {format_amount(doc['total'], symbols=False)}",
             "",
             "---- 行项目 ----",
         ]
@@ -462,10 +467,10 @@ class DocumentsPage:
             line = f"{code + ' ' if code else ''}{it['description']}  x{it['qty']}"
             if um:
                 line += f" {um}"
-            line += (f"  单价 {format_amount(it['unit_price'])}  "
-                     f"Importe {format_amount(it['amount'])}")
+            line += (f"  单价 {format_amount(it['unit_price'], symbols=False)}  "
+                     f"Importe {format_amount(it['amount'], symbols=False)}")
             if neto:
-                line += f"  Neto {format_amount(neto)}"
+                line += f"  Neto {format_amount(neto, symbols=False)}"
             info.append(line)
         info += ["", "---- OCR 原文 ----", doc["raw_text"] or "(无)"]
         txt.insert("1.0", "\n".join(info))

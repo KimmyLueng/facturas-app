@@ -233,14 +233,14 @@ class SupplierSettlementPage:
                     r["partner_name"],
                     r["summary"],
                     r["doc_number"],
-                    format_amount(r["supply_amount_ves"]),
+                    format_amount(r["supply_amount_ves"], symbols=False),
                     r["pay_method"],
                     config.currency_label(r["pay_currency"])
                     or r["pay_currency"] or "",
-                    format_amount(r["pay_bank"]),
-                    format_amount(r["pay_cash_ves"]),
-                    format_amount(r["pay_cash_usd"]),
-                    format_amount(r["pay_cash_cny"]),
+                    format_amount(r["pay_bank"], symbols=False),
+                    format_amount(r["pay_cash_ves"], symbols=False),
+                    format_amount(r["pay_cash_usd"], symbols=False),
+                    format_amount(r["pay_cash_cny"], symbols=False),
                     r["notes"],
                 ))
 

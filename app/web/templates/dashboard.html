@@ -3,10 +3,10 @@
 <h2>经营概览</h2>
 <div class="grid">
   <div class="stat"><div class="k">单据总数</div><div class="v">{{ n_docs }}</div></div>
-  <div class="stat"><div class="k">进货合计</div><div class="v">{{ purchases | money }}</div></div>
-  <div class="stat"><div class="k">销售合计</div><div class="v">{{ sales | money }}</div></div>
-  <div class="stat"><div class="k">收入日报合计</div><div class="v">{{ income_total | money }}</div></div>
-  <div class="stat"><div class="k">支出日报合计</div><div class="v">{{ expense_total | money }}</div></div>
+  <div class="stat"><div class="k">进货合计</div><div class="v">{{ purchases | num }}</div></div>
+  <div class="stat"><div class="k">销售合计</div><div class="v">{{ sales | num }}</div></div>
+  <div class="stat"><div class="k">收入日报合计</div><div class="v">{{ income_total | num }}</div></div>
+  <div class="stat"><div class="k">支出日报合计</div><div class="v">{{ expense_total | num }}</div></div>
   <div class="stat"><div class="k">低库存商品</div><div class="v">{{ low | length }}</div></div>
 </div>
 
@@ -20,7 +20,7 @@
     <td>{{ d.doc_number or '' }}</td>
     <td>{{ '进货' if d.direction == 'compra' else '销售' }}</td>
     <td>{{ d.partner_name or '' }}</td>
-    <td class="num">{{ d.total | money }}</td>
+    <td class="num">{{ d.total | num }}</td>
   </tr>
   {% else %}
   <tr><td colspan="5" class="empty">暂无单据</td></tr>
@@ -39,7 +39,7 @@
     <td>{{ r.category_label or r.category or '' }}</td>
     <td>{{ r.method or '' }}</td>
     <td>{{ r.currency | cur }}</td>
-    <td class="num">{{ r.amount | money }}</td>
+    <td class="num">{{ r.amount | num }}</td>
   </tr>
   {% else %}
   <tr><td colspan="6" class="empty">暂无支出</td></tr>

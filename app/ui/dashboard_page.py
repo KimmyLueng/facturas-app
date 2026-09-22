@@ -87,9 +87,9 @@ class DashboardPage:
         prods = database.list_products()
         low = database.low_stock_products()
 
-        self._set_card("today", "今日销售额", f"{format_amount(today_sum)}\n"
+        self._set_card("today", "今日销售额", f"{format_amount(today_sum, symbols=False)}\n"
                        f"{len(venta_today)} 单出货")
-        self._set_card("month", "本月销售额", f"{format_amount(month_sum)}\n"
+        self._set_card("month", "本月销售额", f"{format_amount(month_sum, symbols=False)}\n"
                        f"{len(venta_month)} 单出货")
         self._set_card("products", "商品种类", f"{len(prods)}")
         self._set_card("low", "库存预警", f"{len(low)} 件", warn=len(low) > 0)
@@ -97,8 +97,9 @@ class DashboardPage:
         self.low_tree.delete(*self.low_tree.get_children())
         for p in low:
             self.low_tree.insert("", "end", tags=("low",),
-                                 values=(p["name"], format_amount(p["stock_qty"]),
-                                         format_amount(p["min_stock"]),
+                                 values=(p["name"],
+                                         format_amount(p["stock_qty"], symbols=False),
+                                         format_amount(p["min_stock"], symbols=False),
                                          p["unit"] or "-"))
 
         self.mv_tree.delete(*self.mv_tree.get_children())
@@ -108,8 +109,9 @@ class DashboardPage:
                                     m["date"] or "-",
                                     m["pname"] or m["pcode"] or "(商品已删)",
                                     _MOVE_LABELS.get(m["move_type"], m["move_type"]),
-                                    ("+" if m["qty"] >= 0 else "") + format_amount(m["qty"]),
-                                    format_amount(m["balance"]),
+                                    ("+" if m["qty"] >= 0 else "")
+                                    + format_amount(m["qty"], symbols=False),
+                                    format_amount(m["balance"], symbols=False),
                                 ))
         if not low:
             self.low_tree.insert("", "end", values=("— 暂无预警 —", "", "", ""))

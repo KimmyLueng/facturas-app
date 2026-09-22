@@ -156,7 +156,7 @@ class SettingsPage:
         self.app.state.settings = settings
         messagebox.showinfo(
             "已保存",
-            f"期初资本 {format_amount(cap)}；本位币 {base_cur}；"
+            f"期初资本 {format_amount(cap, symbols=False)}；本位币 {base_cur}；"
             f"1 USD = {usd_to_base} {base_cur}；官方汇率 1 USD = {usd_ves} Bs；"
             f"1 USD = {usd_cny} CNY；"
             f"分店 {len(settings['stores'])} 个。",

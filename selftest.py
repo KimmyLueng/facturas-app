@@ -747,6 +747,12 @@ def main():
         pdf = reports.export_pdf("trial", out_path=os.path.join(
             os.path.dirname(tmp_db), "cur.pdf"))
         check("科目余额表 PDF 可导出", os.path.exists(pdf), pdf)
+        cli = _web_app.test_client()
+        for path, name in (("/", "经营概览"), ("/documents", "单据管理"),
+                           ("/income", "店铺收入日报"), ("/expense", "店铺支出日报")):
+            page = cli.get(path).get_data(as_text=True)
+            check(f"Web {name} 金额不带 $", "$" not in page,
+                  f"got={[l for l in page.splitlines() if '$' in l][:2]}")
     except Exception as e:  # noqa: BLE001
         print(f"  [SKIP] Web 报表渲染：{e}")
     finally:

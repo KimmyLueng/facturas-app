@@ -45,7 +45,7 @@
     <td>{{ '进货' if d.direction == 'compra' else '销售' }}</td>
     <td>{{ d.partner_name or '' }}</td>
     <td>{{ d.currency | cur }}</td>
-    <td class="num">{{ d.total | money }}</td>
+    <td class="num">{{ d.total | num }}</td>
     <td>
       <form method="post" action="{{ url_for('documents_delete', doc_id=d.id) }}"
             onsubmit="return confirm('删除该单据？');">
