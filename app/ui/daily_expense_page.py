@@ -228,7 +228,7 @@ class DailyExpensePage:
                 database.expense_category_label(r["category"]),
                 r["method"] or "",
                 config.currency_label(r["currency"]) or r["currency"] or "",
-                format_amount(r["amount"]),
+                format_amount(r["amount"], symbols=False),
                 r["notes"] or ""))
 
     def _on_select(self, event):

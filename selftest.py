@@ -720,6 +720,10 @@ def main():
     check("报表金额只输出数字（1.234,50）",
           format_amount(1234.5, symbols=False) == "1.234,50",
           format_amount(1234.5, symbols=False))
+    check("日报列表金额不带货币符号（币种已单列显示）",
+          format_amount(260, symbols=False) == "260,00"
+          and "$" not in format_amount(260, symbols=False),
+          f"got={format_amount(260, symbols=False)}")
     check("Bs 金额后缀为 Bs.",
           format_amount(1234.5, currency="Bs") == "1.234,50 Bs.",
           format_amount(1234.5, currency="Bs"))

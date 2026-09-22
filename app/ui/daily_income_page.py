@@ -174,7 +174,7 @@ class DailyIncomePage:
                 r["store"] or "-",
                 r["source"] or "",
                 config.income_currency_label(r["currency"]),
-                format_amount(r["amount"]),
+                format_amount(r["amount"], symbols=False),
                 r["notes"]))
         self._refresh_summary()
 
@@ -192,7 +192,7 @@ class DailyIncomePage:
             if not by_cur:
                 continue
             code = reports.resolve_account(chart, key)
-            txt = "  ".join(f"{format_amount(v)} {c}"
+            txt = "  ".join(f"{format_amount(v, symbols=False)} {c}"
                             for c, v in sorted(by_cur.items()))
             parts.append(f"{label}（科目 {code or '-'}）：{txt}")
         self.account_var.set("    |    ".join(parts) if parts else "")
@@ -292,7 +292,9 @@ class DailyIncomePage:
             return
         r = self.rows_by_iid.get(sel[0]) or {}
         label = (f"{r.get('date') or ''} {r.get('store') or ''} "
-                 f"{r.get('source') or ''} {format_amount(r.get('amount'))}")
+                 f"{r.get('source') or ''} "
+                 f"{format_amount(r.get('amount'), symbols=False)} "
+                 f"{config.income_currency_label(r.get('currency'))}")
         if messagebox.askyesno("确认删除", f"确定删除这笔收入？\n{label}",
                                parent=self.frame):
             row_id = r.get("row_id") or int(str(sel[0]).lstrip("row") or 0)
