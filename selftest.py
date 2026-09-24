@@ -607,15 +607,27 @@ def main():
     database.add_daily_income_row(iid, {
         "store": "B店", "source": config.INCOME_SOURCE_CASH,
         "currency": "USD", "amount": 300, "notes": ""})
-    for _cat, _amt in (("工资", 200), ("水电费", 60)):
+    for _cat, _amt, _store in (("工资", 200, "A店"), ("水电费", 60, "B店")):
         database.save_daily_expense_item({
-            "date": "2026-09-01", "summary": _cat, "category": _cat,
-            "method": config.PAY_METHOD_CASH, "currency": "USD",
-            "amount": _amt, "notes": ""})
+            "date": "2026-09-01", "store": _store, "summary": _cat,
+            "category": _cat, "method": config.PAY_METHOD_CASH,
+            "currency": "USD", "amount": _amt, "notes": ""})
+    exp_rows = database.list_daily_expense_items()
+    check("支出日报带分店字段（与收入日报一致）",
+          [r.get("store") for r in exp_rows] == ["A店", "B店"],
+          f"got={[r.get('store') for r in exp_rows]}")
+    check("支出日报可按分店筛选",
+          len(database.list_daily_expense_items(store="A店")) == 1
+          and database.list_daily_expense_items(store="A店")[0]["summary"]
+          == "工资",
+          f"got={database.list_daily_expense_items(store='A店')}")
     entries, stats, un = reports.daily_book_entries(None, None)
     check("收入 2 笔 / 支出 2 笔生成 8 条分录",
           stats["income_count"] == 2 and stats["expense_count"] == 2
           and len(entries) == 8, f"got={stats} n={len(entries)}")
+    check("分店不影响记账科目（仍按类别/付款方式入账）",
+          all(str(c).startswith(("1", "5")) for c, _a in entries),
+          f"got={entries}")
     check("金额按原币入账、不折算（收入 400 / 支出 260）",
           abs(stats["income_amount"] - 400) < 0.01
           and abs(stats["expense_amount"] - 260) < 0.01 and not un,
@@ -758,6 +770,9 @@ def main():
             page = cli.get(path).get_data(as_text=True)
             check(f"Web {name} 金额不带 $", "$" not in page,
                   f"got={[l for l in page.splitlines() if '$' in l][:2]}")
+        exp_html = cli.get("/expense").get_data(as_text=True)
+        check("Web 支出日报含分店下拉与分店列",
+              '<select name="store">' in exp_html and "<th>分店</th>" in exp_html)
     except Exception as e:  # noqa: BLE001
         print(f"  [SKIP] Web 报表渲染：{e}")
     finally:

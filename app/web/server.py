@@ -154,6 +154,7 @@ def expense():
                 category = settings_mod.add_expense_category(category)
             rec = {
                 "date": request.form.get("date") or _today(),
+                "store": request.form.get("store", ""),
                 "summary": request.form.get("summary", ""),
                 "category": category,
                 "method": request.form.get("method", ""),
@@ -176,6 +177,7 @@ def expense():
     edit = database.get_daily_expense_item(edit_id) if edit_id else None
     return render_template(
         "expense.html", active="expense", rows=rows, today=_today(),
+        stores=settings_mod.get_stores(),
         categories=settings_mod.get_expense_categories(),
         # 付款方式 = 科目表里货币资金的明细科目
         methods=reports_mod.payment_account_options(),

@@ -134,9 +134,10 @@ CREATE TABLE IF NOT EXISTS daily_expense (
 CREATE TABLE IF NOT EXISTS daily_expense_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL,
+    store TEXT DEFAULT '',               -- 分店名（取自设置的分店列表）
     summary TEXT DEFAULT '',             -- 摘要
     category TEXT DEFAULT '',            -- 费用类别 key（salary/overtime/...）
-    method TEXT DEFAULT '',              -- 银行卡 / 电子支付 / 现金
+    method TEXT DEFAULT '',              -- 库存现金 / 银行存款 / 其他货币资金
     currency TEXT DEFAULT '',            -- Bs / 美元 / 人民币 / USDT
     amount REAL DEFAULT 0,
     notes TEXT DEFAULT '',
@@ -380,6 +381,16 @@ def _migrate(conn):
                 for r in conn.execute("PRAGMA table_info(daily_expense)").fetchall()}
     if "total_cny" not in exp_cols:
         conn.execute("ALTER TABLE daily_expense ADD COLUMN total_cny REAL DEFAULT 0")
+
+    # 支出日报明细：补分店列（与收入日报对齐）
+    try:
+        item_cols = {r["name"] for r in conn.execute(
+            "PRAGMA table_info(daily_expense_items)").fetchall()}
+        if "store" not in item_cols:
+            conn.execute(
+                "ALTER TABLE daily_expense_items ADD COLUMN store TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
 
     # 收入日报：营业额来源拆分（银行卡 / 电子支付 / 现钞 + 各自币种）
     inc_cols = {r["name"]
@@ -1227,6 +1238,7 @@ def save_daily_expense_item(rec: dict) -> int:
     try:
         data = {
             "date": _date_or_iso(rec.get("date")),
+            "store": (rec.get("store") or "").strip(),
             "summary": rec.get("summary", ""),
             "category": rec.get("category", ""),
             "method": rec.get("method", ""),
@@ -1238,16 +1250,17 @@ def save_daily_expense_item(rec: dict) -> int:
         if rec_id:
             conn.execute(
                 """UPDATE daily_expense_items SET
-                   date=:date, summary=:summary, category=:category,
+                   date=:date, store=:store, summary=:summary, category=:category,
                    method=:method, currency=:currency, amount=:amount,
                    notes=:notes WHERE id=:id""",
                 {**data, "id": rec_id})
         else:
             cur = conn.execute(
                 """INSERT INTO daily_expense_items
-                   (date, summary, category, method, currency, amount, notes)
-                   VALUES (:date, :summary, :category, :method, :currency,
-                           :amount, :notes)""",
+                   (date, store, summary, category, method, currency, amount,
+                    notes)
+                   VALUES (:date, :store, :summary, :category, :method,
+                           :currency, :amount, :notes)""",
                 data)
             rec_id = cur.lastrowid
         conn.commit()
@@ -1256,7 +1269,7 @@ def save_daily_expense_item(rec: dict) -> int:
         conn.close()
 
 
-def list_daily_expense_items(date_from=None, date_to=None) -> list:
+def list_daily_expense_items(date_from=None, date_to=None, store=None) -> list:
     conn = get_conn()
     sql = "SELECT * FROM daily_expense_items"
     conds, args = [], []
@@ -1266,6 +1279,9 @@ def list_daily_expense_items(date_from=None, date_to=None) -> list:
     if date_to:
         conds.append("date <= ?")
         args.append(date_to)
+    if store:
+        conds.append("store = ?")
+        args.append(store)
     if conds:
         sql += " WHERE " + " AND ".join(conds)
     sql += " ORDER BY date IS NULL, date, id"

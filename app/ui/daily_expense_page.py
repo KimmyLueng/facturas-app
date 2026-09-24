@@ -1,10 +1,13 @@
 """店铺支出日报表。
 
-- 一笔一行：同一天可录入不同币种、不同付款方式的多笔支出。
+- 一笔一行：同一天可录入不同分店、不同币种、不同付款方式的多笔支出。
 - 列表一行一笔；点击某一行即把该笔支出回填到表单，修改后保存即可（再编辑）。
+- 「分店」下拉读取「设置 → 分店列表（Sucursales）」，与收入日报一致。
 - 费用类别：内置科目 + 手工新增的自定义类别（下拉可直接选择，
   下拉框也可直接输入新类别名，保存时自动登记；或点「＋ 新增类别」）。
 - 付款方式、币种为下拉菜单。
+- 财务报表关联：支出日报按「费用类别 → 费用科目」「付款方式 + 币种 → 货币资金明细科目」
+  生成分录，参与科目余额表 / 资产负债表 / 利润表（见 reports.daily_book_entries）。
 """
 import datetime
 import tkinter as tk
@@ -24,10 +27,30 @@ class DailyExpensePage:
         self.cat_combo = None
         self.method_combo = None
         self.method_hint = None
+        self.store_combo = None
         # 费用类别：界面显示名称 ←→ 数据库 key（含设置里自定义的类别）
         self._reload_categories()
+        # 分店：设置里的分店列表
+        self._reload_stores()
         # 付款方式：货币资金三大类（库存现金 / 银行存款 / 其他货币资金）
         self._reload_methods()
+
+    # ------------------------------------------------------ 分店
+    def _reload_stores(self):
+        """从设置读取分店列表，填充下拉菜单（与收入日报一致）。"""
+        try:
+            stores = settings.get_stores()
+        except Exception:  # noqa: BLE001
+            stores = list(config.DEFAULT_STORES)
+        self.stores = stores
+        if self.store_combo is not None:
+            self.store_combo["values"] = stores
+        var = self.vars.get("store")
+        if var is not None and not (var.get() or "").strip() and stores:
+            var.set(stores[0])
+
+    def _default_store(self) -> str:
+        return self.stores[0] if getattr(self, "stores", None) else ""
 
     # ------------------------------------------------------ 付款方式
     def _reload_methods(self):
@@ -117,9 +140,10 @@ class DailyExpensePage:
 
         cols = (
             ("date", "日期", 95),
+            ("store", "分店", 90),
             ("summary", "摘要", 140),
             ("category", "费用类别", 105),
-            ("method", "付款方式", 95),
+            ("method", "付款方式", 110),
             ("currency", "币种", 140),
             ("amount", "金额", 130),
             ("notes", "备注", 170),
@@ -148,8 +172,15 @@ class DailyExpensePage:
 
         ttk.Label(form, text="摘要").grid(row=0, column=2, sticky="w", padx=(14, 0))
         self.vars["summary"] = tk.StringVar()
-        ttk.Entry(form, textvariable=self.vars["summary"], width=38).grid(
-            row=0, column=3, columnspan=3, sticky="w", padx=8)
+        ttk.Entry(form, textvariable=self.vars["summary"], width=30).grid(
+            row=0, column=3, sticky="w", padx=8)
+
+        # 分店：读取「设置 → 分店列表」，与收入日报一致
+        ttk.Label(form, text="分店").grid(row=0, column=4, sticky="w", padx=(14, 0))
+        self.vars["store"] = tk.StringVar()
+        self.store_combo = ttk.Combobox(form, textvariable=self.vars["store"],
+                                        state="readonly", width=14)
+        self.store_combo.grid(row=0, column=5, sticky="w", padx=8)
 
         ttk.Label(form, text="费用类别").grid(row=1, column=0, sticky="w", pady=3)
         self.vars["category"] = tk.StringVar(value=self._default_category())
@@ -191,6 +222,8 @@ class DailyExpensePage:
         ttk.Button(btn_frame, text="保存", command=self._save).pack(side="left", padx=4)
         ttk.Button(btn_frame, text="新增", command=self._new).pack(side="left", padx=4)
         ttk.Button(btn_frame, text="删除选中", command=self._delete).pack(side="left", padx=4)
+        ttk.Button(btn_frame, text="刷新分店",
+                   command=self._reload_stores).pack(side="left", padx=4)
         ttk.Button(btn_frame, text="＋ 新增类别",
                    command=self._add_category).pack(side="left", padx=4)
         ttk.Label(btn_frame, text="（点击列表中的一行即可再编辑）",
@@ -199,6 +232,7 @@ class DailyExpensePage:
         self.status = ttk.Label(form, text="", foreground="gray")
         self.status.grid(row=4, column=0, columnspan=6, sticky="w")
 
+        self._reload_stores()
         self._update_method_hint()
         self.refresh()
 
@@ -224,6 +258,7 @@ class DailyExpensePage:
         for r in database.list_daily_expense_items():
             self.tree.insert("", "end", iid=str(r["id"]), values=(
                 r["date"] or "",
+                r.get("store") or "",
                 r["summary"] or "",
                 database.expense_category_label(r["category"]),
                 r["method"] or "",
@@ -241,6 +276,7 @@ class DailyExpensePage:
             return
         self.current_id = rec["id"]
         self.vars["date"].set(rec["date"] or "")
+        self.vars["store"].set(rec.get("store") or self._default_store())
         self.vars["summary"].set(rec["summary"] or "")
         self.vars["category"].set(
             self._key_to_label.get(rec["category"], rec["category"] or ""))
@@ -262,6 +298,7 @@ class DailyExpensePage:
         return {
             "id": self.current_id,
             "date": self.vars["date"].get().strip() or date_iso(datetime.date.today()),
+            "store": self.vars["store"].get().strip(),
             "summary": self.vars["summary"].get(),
             "category": self._resolve_category_key(label),
             "method": self._method_name(self.vars["method"].get()),
@@ -291,6 +328,7 @@ class DailyExpensePage:
     def _new(self):
         self.current_id = None
         self.vars["date"].set(date_iso(datetime.date.today()))
+        self.vars["store"].set(self._default_store())
         self.vars["summary"].set("")
         self.vars["category"].set(self._default_category())
         self.vars["method"].set(self._default_method())

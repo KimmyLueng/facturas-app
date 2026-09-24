@@ -5,6 +5,13 @@
   {% if edit %}<input type="hidden" name="id" value="{{ edit.id }}">{% endif %}
   <div class="form-row">
     <label>日期<input type="date" name="date" value="{{ edit.date if edit else today }}" required></label>
+    <label>分店
+      <select name="store">
+        {% for s in stores %}
+        <option value="{{ s }}" {{ 'selected' if edit and edit.store == s }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <label>摘要<input name="summary" placeholder="选填" value="{{ edit.summary if edit else '' }}"></label>
     <label>费用类别
       <select name="category">
@@ -44,10 +51,11 @@
 <h3>支出明细（一笔一行，点「编辑」可修改）</h3>
 <div class="table-wrap">
 <table>
-  <tr><th>日期</th><th>摘要</th><th>类别</th><th>付款方式</th><th>币种</th><th class="num">金额</th><th>备注</th><th></th></tr>
+  <tr><th>日期</th><th>分店</th><th>摘要</th><th>类别</th><th>付款方式</th><th>币种</th><th class="num">金额</th><th>备注</th><th></th></tr>
   {% for r in rows %}
   <tr {% if edit and edit.id == r.id %}class="section"{% endif %}>
     <td>{{ r.date }}</td>
+    <td>{{ r.store or '' }}</td>
     <td>{{ r.summary }}</td>
     <td>{{ r.category_label or r.category }}</td>
     <td>{{ r.method }}</td>
@@ -65,7 +73,7 @@
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="8" class="empty">暂无支出记录</td></tr>
+  <tr><td colspan="9" class="empty">暂无支出记录</td></tr>
   {% endfor %}
 </table>
 </div>
