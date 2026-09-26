@@ -139,12 +139,45 @@ class MainWindow(tk.Tk):
         # 后台自动同步（WebDAV）：每 60 秒检查一次是否到了同步间隔
         self.after(5000, self._auto_sync_tick)
 
+    def _make_scroll_content(self):
+        """在右侧内容区创建可滚动容器，保证窗口缩小/拉伸时内容完整可见。
+
+        返回内部 Frame（页面把控件建在它上面）。内容比窗口小时，内部 Frame
+        自动撑满窗口宽度（控件随窗口拉伸）；内容比窗口大时，出现双向滚动条。
+        """
+        outer = ttk.Frame(self.content)
+        outer.pack(fill="both", expand=True)
+        canvas = tk.Canvas(outer, highlightthickness=0)
+        vsb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        hsb = ttk.Scrollbar(outer, orient="horizontal", command=canvas.xview)
+        canvas.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        outer.rowconfigure(0, weight=1)
+        outer.columnconfigure(0, weight=1)
+
+        inner = ttk.Frame(canvas)
+        inner_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _sync_scrollregion(_evt=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _fit_width(_evt=None):
+            # 内部 Frame 宽度 = max(画布宽度, 内容需求宽度)
+            # 这样窗口变大时控件随窗口拉伸，窗口变小时可横向滚动看到全部
+            need = inner.winfo_reqwidth()
+            canvas.itemconfig(inner_id, width=max(canvas.winfo_width(), need))
+
+        inner.bind("<Configure>", _sync_scrollregion)
+        canvas.bind("<Configure>", lambda e: (_fit_width(e), _sync_scrollregion(e)))
+        return inner
+
     def show_page(self, name):
         page = self.pages[name]
         for w in self.content.winfo_children():
             w.destroy()
-        page.frame = ttk.Frame(self.content)
-        page.frame.pack(fill="both", expand=True)
+        page.frame = self._make_scroll_content()
         page.build()
         self.current_page = page
 
