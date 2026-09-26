@@ -75,6 +75,10 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .indent-3 { padding-left: 58px; }
 .section td { background: #f7f9fc; font-weight: 600; }
 
+.btn.tiny { padding: 6px 12px; font-size: 14px; min-height: auto; border-radius: 16px; background: #eef3fb; color: var(--brand); }
+.rates-row { align-items: center; gap: 14px; }
+.rates-row span { color: var(--muted); font-size: 14px; }
+.rates-row b { color: var(--text); }
 .muted { color: #666; font-size: 13px; margin: 8px 0; }
 .alert { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
 .alert.ok { background: #e7f4ec; color: var(--ok); }

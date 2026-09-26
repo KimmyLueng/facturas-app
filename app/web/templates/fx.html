@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>结汇 / 兑换单</h2>
-<p class="hint">支持库存现金各币种互相兑换（如 USD → Bs、Bs → CNY）。汇率按<b>录入日期</b>自动带出（非系统当天）；
-填入汇出原币金额后，自动按当日交叉汇率带出换入原币金额，均可手改。</p>
+<h2>兑换单</h2>
+<p class="hint">库存现金各币种直接互相兑换。汇率严格区分：
+<b>BCV 汇率（Dólar BCV，官方）</b>为会计法定依据、默认使用；
+<b>平行汇率（Dólar Paralelo）</b>为市场参考，可一键套用。均按录入日期取历史汇率（无历史则取当前设置），可手动修改。</p>
 
 <form method="post" class="card">
   <input type="hidden" name="id" value="{{ edit.id if edit else '' }}">
@@ -15,12 +16,10 @@
         {% endfor %}
       </select>
     </label>
-    <label>汇出原币金额<input name="from_amount" id="fx_from_amt" inputmode="decimal" required
+    <label>兑换原币金额<input name="from_amount" id="fx_from_amt" inputmode="decimal" required
         value="{{ edit.from_amount if edit else '' }}" placeholder="0.00"></label>
-    <label>账面汇率<input name="book_rate" id="fx_book" inputmode="decimal" required
-        value="{{ edit.book_rate if edit else '' }}" placeholder="按日期带出"></label>
-    <label>结汇汇率<input name="settle_rate" id="fx_settle" inputmode="decimal" required
-        value="{{ edit.settle_rate if edit else '' }}" placeholder="按日期带出"></label>
+    <label>成交汇率（1 换出 = X 换入）<input name="rate" id="fx_rate" inputmode="decimal" required
+        value="{{ edit.rate if edit else '' }}" placeholder="按日期带出"></label>
   </div>
   <div class="form-row">
     <label>换入币种
@@ -33,6 +32,12 @@
     <label>换入原币金额<input name="to_amount" id="fx_to_amt" inputmode="decimal" required
         value="{{ edit.to_amount if edit else '' }}" placeholder="自动带出"></label>
     <label>备注<input name="notes" value="{{ edit.notes if edit else '' }}"></label>
+  </div>
+  <div class="form-row rates-row">
+    <span>BCV（Dólar BCV，官方）：<b id="fx_bcv">—</b></span>
+    <span>平行（Dólar Paralelo）：<b id="fx_par">—</b></span>
+    <button type="button" class="btn tiny" onclick="applyRate('bcv')">用 BCV</button>
+    <button type="button" class="btn tiny" onclick="applyRate('parallel')">用平行</button>
   </div>
   <button type="submit">保存兑换单</button>
   {% if edit %}<a class="btn secondary" href="{{ url_for('fx') }}">取消编辑</a>{% endif %}
@@ -62,7 +67,7 @@
 <h3>兑换单列表</h3>
 <div class="table-wrap">
 <table>
-  <tr><th>日期</th><th>换出</th><th class="num">汇出原币</th><th class="num">结汇汇率</th>
+  <tr><th>日期</th><th>换出</th><th class="num">兑换原币</th><th class="num">成交汇率</th>
       <th>换入</th><th class="num">换入原币</th><th class="num">本位币到账</th>
       <th class="num">汇兑损益</th><th>备注</th><th></th></tr>
   {% for r in rows %}
@@ -70,7 +75,7 @@
     <td>{{ r.date or '' }}</td>
     <td>{{ r.from_label or r.from_currency or '' }}</td>
     <td class="num">{{ r.from_amount | num }}</td>
-    <td class="num">{{ r.settle_rate | num }}</td>
+    <td class="num">{{ r.rate | num }}</td>
     <td>{{ r.to_label or r.to_currency or '' }}</td>
     <td class="num">{{ r.to_amount | num }}</td>
     <td class="num">{{ r.home_amount | num }}</td>
@@ -92,13 +97,14 @@
 
 <script>
 (function () {
-  var st = {from_rate: null, to_rate: null, last_to: ""};
+  var st = {bcv: null, par: null, last_to: ""};
   var $ = function (id) { return document.getElementById(id); };
 
   function computeTo() {
     var amt = parseFloat($("fx_from_amt").value) || 0;
-    if (amt && st.from_rate && st.to_rate) {
-      var to = amt * st.from_rate / st.to_rate;
+    var rate = parseFloat($("fx_rate").value) || 0;
+    if (amt && rate) {
+      var to = amt * rate;
       var cur = $("fx_to_amt").value.trim();
       if (cur === "" || cur === "0" || Math.abs(parseFloat(cur) - (parseFloat(st.last_to) || -1)) < 1e-6) {
         $("fx_to_amt").value = to.toFixed(2);
@@ -108,31 +114,35 @@
   }
 
   function fetchRates() {
-    var d = $("fx_date").value;
-    var f = $("fx_from").value;
-    var t = $("fx_to").value;
+    var d = $("fx_date").value, f = $("fx_from").value, t = $("fx_to").value;
     if (!d || !f || !t) return;
     fetch("{{ url_for('fx_api_rates') }}?date=" + encodeURIComponent(d) +
           "&from_currency=" + encodeURIComponent(f) +
           "&to_currency=" + encodeURIComponent(t))
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        st.from_rate = j.from_rate; st.to_rate = j.to_rate;
-        if (j.from_rate && j.from_rate > 0) {
-          $("fx_book").value = j.from_rate.toFixed(4);
-          $("fx_settle").value = j.from_rate.toFixed(4);
-        }
+        st.bcv = j.bcv; st.par = j.parallel;
+        $("fx_bcv").textContent = (j.bcv ? j.bcv.toFixed(4) : "—");
+        $("fx_par").textContent = (j.parallel ? j.parallel.toFixed(4) : "—");
         $("fx_note").textContent = j.has_history
-          ? "（汇率按录入日期历史）" : "（该日期无历史汇率，已用当前设置汇率兜底，可手改）";
+          ? "（按录入日期历史汇率）" : "（该日期无历史汇率，已用当前设置汇率兜底，可手改）";
+        var cur = $("fx_rate").value.trim();
+        if (cur === "" || cur === "0") { $("fx_rate").value = (j.bcv || 0).toFixed(4); }
         computeTo();
       })
       .catch(function () {});
   }
 
+  window.applyRate = function (kind) {
+    var v = kind === "bcv" ? st.bcv : st.par;
+    if (v) { $("fx_rate").value = v.toFixed(4); computeTo(); }
+  };
+
   ["fx_date", "fx_from", "fx_to"].forEach(function (id) {
     $(id).addEventListener("change", fetchRates);
   });
   $("fx_from_amt").addEventListener("input", computeTo);
+  $("fx_rate").addEventListener("input", computeTo);
   fetchRates();
 })();
 </script>

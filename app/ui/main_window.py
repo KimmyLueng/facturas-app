@@ -121,7 +121,7 @@ class MainWindow(tk.Tk):
         make_nav("📊 财务报表", ReportsPage)
         make_nav("💰 店铺收入日报", DailyIncomePage)
         make_nav("💸 店铺支出日报", DailyExpensePage)
-        make_nav("💱 结汇 / 兑换单", FxExchangePage)
+        make_nav("💱 兑换单", FxExchangePage)
         make_nav("🏭 供应商结算", SupplierSettlementPage)
         make_nav("📒 财务期初余额", OpeningBalancePage)
         make_nav("☁️ 数据同步", SyncPage)

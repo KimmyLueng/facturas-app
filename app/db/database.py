@@ -150,8 +150,9 @@ CREATE TABLE IF NOT EXISTS fx_orders (
     from_currency TEXT DEFAULT '',         -- 换出币种（外币原币）
     from_amount REAL DEFAULT 0,            -- 换出原币金额
     book_rate REAL DEFAULT 0,              -- 账面汇率（本位币 / 1 单位换出币种，历史 carrying 汇率）
-    settle_rate REAL DEFAULT 0,            -- 结汇汇率（本位币 / 1 单位换出币种，本次实际成交汇率）
+    settle_rate REAL DEFAULT 0,            -- 成交结算汇率（本位币 / 1 单位换出币种，本次实际成交汇率）
     to_currency TEXT DEFAULT '',           -- 换入币种
+    rate REAL DEFAULT 0,                   -- 实际成交汇率（1 换出币种 = X 换入币种，cross rate）
     to_amount REAL DEFAULT 0,             -- 换入原币金额
     home_amount REAL DEFAULT 0,            -- 本位币到账（= from_amount * settle_rate）
     gain_loss REAL DEFAULT 0,              -- 汇兑损益（= home_amount - from_amount * book_rate）
@@ -162,8 +163,9 @@ CREATE TABLE IF NOT EXISTS fx_orders (
 CREATE TABLE IF NOT EXISTS exchange_rates (
     date TEXT NOT NULL,                 -- 业务日期（YYYY-MM-DD）
     currency TEXT NOT NULL,             -- 币种代码（Bs/USD/CNY/USDT...）
+    kind TEXT NOT NULL DEFAULT 'bcv',   -- 'bcv'=官方 BCV；'parallel'=平行市场 Dólar Paralelo
     rate REAL NOT NULL,                 -- 1 单位该币种 = rate 本位币
-    PRIMARY KEY (date, currency)
+    PRIMARY KEY (date, currency, kind)
 );
 
 CREATE TABLE IF NOT EXISTS supplier_settlements (
@@ -1353,12 +1355,14 @@ def reassign_expense_category(old_key: str, new_key: str) -> int:
         conn.close()
 
 
-# ------------------------------------------------------------------ fx_orders (结汇/兑换单)
+# ------------------------------------------------------------------ fx_orders (兑换单)
 def save_fx_order(rec: dict) -> int:
-    """保存一笔结汇/兑换单，自动计算本位币到账与汇兑损益。
+    """保存一笔兑换单，自动计算本位币到账与汇兑损益。
 
     rec 字段：id(可选), date, from_currency, from_amount, book_rate,
-    settle_rate, to_currency, to_amount, notes
+    settle_rate, to_currency, rate, to_amount, notes
+    rate 为成交交叉汇率（1 换出币种 = X 换入币种）；
+    book_rate/settle_rate 为「本位币 / 1 换出币种」，由调用方换算后传入。
     返回记录 id。
     """
     from_amount = float(rec.get("from_amount") or 0)
@@ -1373,6 +1377,7 @@ def save_fx_order(rec: dict) -> int:
         "book_rate": book_rate,
         "settle_rate": settle_rate,
         "to_currency": (rec.get("to_currency") or "").strip(),
+        "rate": float(rec.get("rate") or 0),
         "to_amount": float(rec.get("to_amount") or 0),
         "home_amount": home_amount,
         "gain_loss": gain_loss,
@@ -1386,17 +1391,17 @@ def save_fx_order(rec: dict) -> int:
                 """UPDATE fx_orders SET date=:date, from_currency=:from_currency,
                    from_amount=:from_amount, book_rate=:book_rate,
                    settle_rate=:settle_rate, to_currency=:to_currency,
-                   to_amount=:to_amount, home_amount=:home_amount,
+                   rate=:rate, to_amount=:to_amount, home_amount=:home_amount,
                    gain_loss=:gain_loss, notes=:notes WHERE id=:id""",
                 {**data, "id": rec_id})
         else:
             cur = conn.execute(
                 """INSERT INTO fx_orders
                    (date, from_currency, from_amount, book_rate, settle_rate,
-                    to_currency, to_amount, home_amount, gain_loss, notes)
+                    to_currency, rate, to_amount, home_amount, gain_loss, notes)
                    VALUES (:date, :from_currency, :from_amount, :book_rate,
-                           :settle_rate, :to_currency, :to_amount, :home_amount,
-                           :gain_loss, :notes)""",
+                           :settle_rate, :to_currency, :rate, :to_amount,
+                           :home_amount, :gain_loss, :notes)""",
                 data)
             rec_id = cur.lastrowid
         conn.commit()
@@ -1445,50 +1450,50 @@ def delete_fx_order(rec_id: int):
 
 
 # ------------------------------------------------------------------ exchange_rates (按日汇率历史)
-def save_exchange_rate(date: str, currency: str, rate: float):
-    """记录某日期某币种的「1 单位币种 = rate 本位币」汇率（幂等覆盖）。"""
+def save_exchange_rate(date: str, currency: str, rate: float, kind: str = "bcv"):
+    """记录某日期某币种某口径的「1 单位币种 = rate 本位币」汇率（幂等覆盖）。"""
     conn = get_conn()
     try:
         conn.execute(
-            """INSERT INTO exchange_rates (date, currency, rate) VALUES (?, ?, ?)
-               ON CONFLICT(date, currency) DO UPDATE SET rate=excluded.rate""",
-            (date, (currency or "").strip(), float(rate or 0)))
+            """INSERT INTO exchange_rates (date, currency, kind, rate) VALUES (?, ?, ?, ?)
+               ON CONFLICT(date, currency, kind) DO UPDATE SET rate=excluded.rate""",
+            (date, (currency or "").strip(), (kind or "bcv").strip(), float(rate or 0)))
         conn.commit()
     finally:
         conn.close()
 
 
-def get_exchange_rate(date: str, currency: str):
-    """取某日期该币种的汇率；不存在返回 None。"""
+def get_exchange_rate(date: str, currency: str, kind: str = "bcv"):
+    """取某日期该币种该口径的汇率；不存在返回 None。"""
     conn = get_conn()
     try:
         row = conn.execute(
-            "SELECT rate FROM exchange_rates WHERE date=? AND currency=?",
-            (date, (currency or "").strip())).fetchone()
+            "SELECT rate FROM exchange_rates WHERE date=? AND currency=? AND kind=?",
+            (date, (currency or "").strip(), (kind or "bcv").strip())).fetchone()
         return float(row["rate"]) if row else None
     finally:
         conn.close()
 
 
-def get_rate_on_or_before(date: str, currency: str):
-    """取该日期或之前最近一次记录的汇率；都没有返回 None。"""
+def get_rate_on_or_before(date: str, currency: str, kind: str = "bcv"):
+    """取该日期或之前最近一次记录的某口径汇率；都没有返回 None。"""
     conn = get_conn()
     try:
         row = conn.execute(
             """SELECT rate FROM exchange_rates
-               WHERE currency=? AND date <= ?
+               WHERE currency=? AND kind=? AND date <= ?
                ORDER BY date DESC LIMIT 1""",
-            ((currency or "").strip(), date)).fetchone()
+            ((currency or "").strip(), (kind or "bcv").strip(), date)).fetchone()
         return float(row["rate"]) if row else None
     finally:
         conn.close()
 
 
-def save_rates_for_date(date: str, rates: dict):
-    """批量记录某日期的汇率 {currency: rate}。"""
+def save_rates_for_date(date: str, rates: dict, kind: str = "bcv"):
+    """批量记录某日期某口径的汇率 {currency: rate}。"""
     for cur, rate in (rates or {}).items():
         if cur and rate is not None:
-            save_exchange_rate(date, cur, rate)
+            save_exchange_rate(date, cur, rate, kind)
 
 
 # ------------------------------------------------------------------ supplier_settlements

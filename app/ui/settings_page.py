@@ -75,6 +75,15 @@ class SettingsPage:
             value=f"（更新时间：{upd[:10]}）" if upd else "（未获取）")
         ttk.Label(r2, textvariable=self.rate_date_var, foreground="gray").pack(side="left")
 
+        r2b = ttk.Frame(fx)
+        r2b.pack(fill="x", padx=10, pady=4)
+        ttk.Label(r2b, text="委内瑞拉平行汇率（1 USD = X Bs，Dólar Paralelo）：").pack(side="left")
+        self.usd_ves_parallel_var = tk.StringVar(
+            value=str(s.get("usd_ves_parallel", 0.0) or 0.0))
+        ttk.Entry(r2b, textvariable=self.usd_ves_parallel_var, width=10).pack(side="left", padx=8)
+        ttk.Label(r2b, text="（平行市场实际成交参考，与 BCV 并行；可手动填写）",
+                  foreground="gray").pack(side="left")
+
         rc = ttk.Frame(fx)
         rc.pack(fill="x", padx=10, pady=4)
         ttk.Label(rc, text="美元兑人民币（1 USD = X CNY）：").pack(side="left")
@@ -132,6 +141,7 @@ class SettingsPage:
             cap = parse_amount(self.capital_var.get())
             usd_to_base = parse_amount(self.usd_to_base_var.get())
             usd_ves = parse_amount(self.usd_ves_var.get())
+            usd_ves_p = parse_amount(self.usd_ves_parallel_var.get())
             usd_cny = parse_amount(self.usd_cny_var.get())
         except ValueError:
             messagebox.showwarning("提示", "金额/汇率格式无效，请检查输入。", parent=self.frame)
@@ -146,6 +156,7 @@ class SettingsPage:
         settings["base_currency"] = base_cur
         settings["usd_to_base"] = usd_to_base
         settings["usd_ves_official"] = usd_ves
+        settings["usd_ves_parallel"] = usd_ves_p
         settings["usd_cny"] = usd_cny
         if usd_ves > 0 and not settings.get("usd_ves_date"):
             settings["usd_ves_date"] = datetime.date.today().isoformat()
@@ -164,6 +175,7 @@ class SettingsPage:
             "已保存",
             f"期初资本 {format_amount(cap, symbols=False)}；本位币 {base_cur}；"
             f"1 USD = {usd_to_base} {base_cur}；官方汇率 1 USD = {usd_ves} Bs；"
+            f"平行汇率 1 USD = {usd_ves_p} Bs；"
             f"1 USD = {usd_cny} CNY；"
             f"分店 {len(settings['stores'])} 个。",
             parent=self.frame)
@@ -235,6 +247,7 @@ class SettingsPage:
             s.get("base_currency") or config.DEFAULT_BASE_CURRENCY))
         self.usd_to_base_var.set(str(s.get("usd_to_base", 1.0)))
         self.usd_ves_var.set(str(s.get("usd_ves_official", 0.0) or 0.0))
+        self.usd_ves_parallel_var.set(str(s.get("usd_ves_parallel", 0.0) or 0.0))
         self.usd_cny_var.set(str(s.get("usd_cny", 0.0) or 0.0))
         self.stores_var.set(", ".join(s.get("stores") or config.DEFAULT_STORES))
         upd = s.get("usd_ves_date", "")

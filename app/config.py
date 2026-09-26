@@ -294,7 +294,7 @@ ACCOUNT_EXPENSE_UTILITIES = "628"   # Suministros 水电费
 ACCOUNT_EXPENSE_RENT = "621"        # Arrendamientos 租赁费（铺租）
 ACCOUNT_EXPENSE_TAX = "631"         # Otros tributos 税金
 ACCOUNT_EXPENSE_OTHER = "629"       # Otros servicios 其他费用（市政管理费/自定义类别）
-ACCOUNT_FX = "670"                   # Diferencias de cambio 汇兑损益（结汇/兑换单）
+ACCOUNT_FX = "670"                   # Diferencias de cambio 汇兑损益（兑换单）
 
 # 科目显示名称（西班牙语 + 中文）
 ACCOUNT_NAMES = {

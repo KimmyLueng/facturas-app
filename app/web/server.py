@@ -41,7 +41,7 @@ NAV = [
     ("dashboard", "概览"),
     ("income", "收入日报"),
     ("expense", "支出日报"),
-    ("fx", "结汇兑换"),
+    ("fx", "兑换单"),
     ("documents", "单据"),
     ("products", "库存"),
     ("reports", "报表"),
@@ -196,20 +196,26 @@ def expense_delete(rec_id):
 
 
 # ------------------------------------------------------------------ 结汇/兑换单
+# ------------------------------------------------------------------ 兑换单
 @app.route("/fx", methods=["GET", "POST"])
 def fx():
     if request.method == "POST":
         try:
+            date = request.form.get("date") or _today()
+            f = config.normalize_currency(request.form.get("from_currency", ""))
+            t = config.normalize_currency(request.form.get("to_currency", ""))
+            rate = parse_amount(request.form.get("rate"))
+            settle_rate = rate * rates_mod.to_base(t, rates_mod.RATE_BCV, date)
+            book_rate = rates_mod.to_base(f, rates_mod.RATE_BCV, date)
             rec = {
                 "id": request.form.get("id", type=int) or None,
-                "date": request.form.get("date") or _today(),
-                "from_currency": config.normalize_currency(
-                    request.form.get("from_currency", "")),
+                "date": date,
+                "from_currency": f,
                 "from_amount": parse_amount(request.form.get("from_amount")),
-                "book_rate": parse_amount(request.form.get("book_rate")),
-                "settle_rate": parse_amount(request.form.get("settle_rate")),
-                "to_currency": config.normalize_currency(
-                    request.form.get("to_currency", "")),
+                "book_rate": book_rate,
+                "settle_rate": settle_rate,
+                "to_currency": t,
+                "rate": rate,
                 "to_amount": parse_amount(request.form.get("to_amount")),
                 "notes": request.form.get("notes", ""),
             }
@@ -243,16 +249,16 @@ def fx_delete(rec_id):
 
 @app.get("/fx/api/rates")
 def fx_api_rates():
-    """按录入日期取币种汇率（本位币/1单位币种），前端自动带出。"""
+    """按录入日期取交叉汇率（1 换出 = X 换入），区分 BCV 与平行市场，前端自动带出。"""
     date = request.args.get("date", "")
     from_currency = config.normalize_currency(request.args.get("from_currency", ""))
     to_currency = config.normalize_currency(request.args.get("to_currency", ""))
-    from_rate = rates_mod.rate_on_date(date, from_currency) if date else None
-    to_rate = rates_mod.rate_on_date(date, to_currency) if date else None
-    has_hist = database.get_rate_on_or_before(date, from_currency) is not None
+    bcv = rates_mod.cross_rate(from_currency, to_currency, rates_mod.RATE_BCV, date) if date else 0
+    par = rates_mod.cross_rate(from_currency, to_currency, rates_mod.RATE_PARALLEL, date) if date else 0
+    has_hist = database.get_rate_on_or_before(date, from_currency, rates_mod.RATE_BCV) is not None
     return {
-        "from_rate": from_rate,
-        "to_rate": to_rate,
+        "bcv": bcv,
+        "parallel": par,
         "has_history": has_hist,
     }
 
