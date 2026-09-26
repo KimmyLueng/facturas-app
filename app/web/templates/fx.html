@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>结汇 / 兑换单</h2>
+<p class="hint">支持库存现金各币种互相兑换（如 USD → Bs、Bs → CNY）。系统自动按
+「换出原币 × 结汇汇率」计算本位币到账，并与「换出原币 × 账面汇率」比较得出汇兑损益。</p>
+
+<form method="post" class="card">
+  <input type="hidden" name="id" value="{{ edit.id if edit else '' }}">
+  <div class="form-row">
+    <label>日期<input type="date" name="date" value="{{ edit.date if edit else today }}"></label>
+    <label>换出币种
+      <select name="from_currency">
+        {% for c in currencies %}
+        <option value="{{ c.code }}" {{ 'selected' if edit and edit.from_currency == c.code }}>{{ c.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>换出原币金额<input name="from_amount" inputmode="decimal" required
+        value="{{ edit.from_amount if edit else '' }}" placeholder="0.00"></label>
+    <label>账面汇率<input name="book_rate" inputmode="decimal" required
+        value="{{ edit.book_rate if edit else '1' }}" placeholder="本位币/换出币"></label>
+    <label>结汇汇率<input name="settle_rate" inputmode="decimal" required
+        value="{{ edit.settle_rate if edit else '1' }}" placeholder="本位币/换出币"></label>
+  </div>
+  <div class="form-row">
+    <label>换入币种
+      <select name="to_currency">
+        {% for c in currencies %}
+        <option value="{{ c.code }}" {{ 'selected' if edit and edit.to_currency == c.code }}>{{ c.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>换入原币金额<input name="to_amount" inputmode="decimal" required
+        value="{{ edit.to_amount if edit else '' }}" placeholder="0.00"></label>
+    <label>备注<input name="notes" value="{{ edit.notes if edit else '' }}"></label>
+  </div>
+  <button type="submit">保存兑换单</button>
+  {% if edit %}<a class="btn secondary" href="{{ url_for('fx') }}">取消编辑</a>{% endif %}
+</form>
+
+{% if voucher %}
+<h3>凭证预览</h3>
+<div class="card">
+  <div class="table-wrap">
+  <table>
+    <tr><th>科目编码</th><th>科目名称</th><th class="num">借方</th><th class="num">贷方</th></tr>
+    {% for e in voucher.entries %}
+    <tr>
+      <td>{{ e.account }}</td>
+      <td>{{ e.account_name }}</td>
+      <td class="num">{{ e.debit | num }}</td>
+      <td class="num">{{ e.credit | num }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="muted">本位币到账：<b>{{ voucher.home_amount | num }}</b>　汇兑损益：<b>{{ voucher.gain_loss | num }}</b></p>
+</div>
+{% endif %}
+
+<h3>兑换单列表</h3>
+<div class="table-wrap">
+<table>
+  <tr><th>日期</th><th>换出</th><th class="num">换出原币</th><th class="num">结汇汇率</th>
+      <th>换入</th><th class="num">换入原币</th><th class="num">本位币到账</th>
+      <th class="num">汇兑损益</th><th>备注</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.date or '' }}</td>
+    <td>{{ r.from_label or r.from_currency or '' }}</td>
+    <td class="num">{{ r.from_amount | num }}</td>
+    <td class="num">{{ r.settle_rate | num }}</td>
+    <td>{{ r.to_label or r.to_currency or '' }}</td>
+    <td class="num">{{ r.to_amount | num }}</td>
+    <td class="num">{{ r.home_amount | num }}</td>
+    <td class="num">{{ r.gain_loss | num }}</td>
+    <td>{{ r.notes or '' }}</td>
+    <td>
+      <a class="btn secondary" href="{{ url_for('fx', edit=r.id) }}">编辑</a>
+      <form method="post" action="{{ url_for('fx_delete', rec_id=r.id) }}"
+            onsubmit="return confirm('删除该兑换单？');" style="display:inline">
+        <button type="submit" class="link">删除</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="10" class="empty">暂无兑换单</td></tr>
+  {% endfor %}
+</table>
+</div>
+{% endblock %}

@@ -15,6 +15,7 @@ from app.ui.documents_page import DocumentsPage
 from app.ui.reports_page import ReportsPage
 from app.ui.daily_income_page import DailyIncomePage
 from app.ui.daily_expense_page import DailyExpensePage
+from app.ui.fx_exchange_page import FxExchangePage
 from app.ui.supplier_settlement_page import SupplierSettlementPage
 from app.ui.opening_balance_page import OpeningBalancePage
 from app.ui.settings_page import SettingsPage
@@ -120,6 +121,7 @@ class MainWindow(tk.Tk):
         make_nav("📊 财务报表", ReportsPage)
         make_nav("💰 店铺收入日报", DailyIncomePage)
         make_nav("💸 店铺支出日报", DailyExpensePage)
+        make_nav("💱 结汇 / 兑换单", FxExchangePage)
         make_nav("🏭 供应商结算", SupplierSettlementPage)
         make_nav("📒 财务期初余额", OpeningBalancePage)
         make_nav("☁️ 数据同步", SyncPage)

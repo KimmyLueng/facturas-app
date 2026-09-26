@@ -84,6 +84,7 @@ FALLBACK_ACCOUNTS = {
     "expense_utilities": config.ACCOUNT_EXPENSE_UTILITIES,
     "expense_rent": config.ACCOUNT_EXPENSE_RENT,
     "expense_other": config.ACCOUNT_EXPENSE_OTHER,
+    "fx": config.ACCOUNT_FX,
 }
 
 

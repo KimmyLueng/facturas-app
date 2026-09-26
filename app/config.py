@@ -294,6 +294,7 @@ ACCOUNT_EXPENSE_UTILITIES = "628"   # Suministros 水电费
 ACCOUNT_EXPENSE_RENT = "621"        # Arrendamientos 租赁费（铺租）
 ACCOUNT_EXPENSE_TAX = "631"         # Otros tributos 税金
 ACCOUNT_EXPENSE_OTHER = "629"       # Otros servicios 其他费用（市政管理费/自定义类别）
+ACCOUNT_FX = "670"                   # Diferencias de cambio 汇兑损益（结汇/兑换单）
 
 # 科目显示名称（西班牙语 + 中文）
 ACCOUNT_NAMES = {
@@ -315,6 +316,7 @@ ACCOUNT_NAMES = {
     ACCOUNT_EXPENSE_RENT: "Arrendamientos 租赁费",
     ACCOUNT_EXPENSE_TAX: "Tributos 税金",
     ACCOUNT_EXPENSE_OTHER: "Otros gastos 其他费用",
+    ACCOUNT_FX: "Diferencias de cambio 汇兑损益",
 }
 
 # 支出日报「费用类别 key」→ 报表科目 key（见 ACCOUNTING_MAP）
@@ -351,6 +353,7 @@ ACCOUNTING_MAP = {
     "expense_utilities": (["560211", "5602"], ["水电"]),
     "expense_rent": (["560210", "5602"], ["租赁", "租金", "房租"]),
     "expense_other": (["5602", "5601"], ["管理费用", "其他费用"]),
+    "fx": (["670"], ["汇兑损益", "兑换损益", "diferencias de cambio"]),
 }
 
 # 科目类别（按《小企业会计准则》编码首位）

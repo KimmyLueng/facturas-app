@@ -18,6 +18,7 @@ from flask import Flask, redirect, render_template, request, url_for
 from app import config
 from app import settings as settings_mod
 from app.accounting import reports as reports_mod
+from app.accounting import fx as fx_mod
 from app.db import database
 from app.sync import manager as sync_mgr
 from app.utils import (date_iso, format_amount, format_base_amount,
@@ -39,6 +40,7 @@ NAV = [
     ("dashboard", "概览"),
     ("income", "收入日报"),
     ("expense", "支出日报"),
+    ("fx", "结汇兑换"),
     ("documents", "单据"),
     ("products", "库存"),
     ("reports", "报表"),
@@ -190,6 +192,52 @@ def expense():
 def expense_delete(rec_id):
     database.delete_daily_expense_item(rec_id)
     return _go("expense", "已删除该笔支出")
+
+
+# ------------------------------------------------------------------ 结汇/兑换单
+@app.route("/fx", methods=["GET", "POST"])
+def fx():
+    if request.method == "POST":
+        try:
+            rec = {
+                "id": request.form.get("id", type=int) or None,
+                "date": request.form.get("date") or _today(),
+                "from_currency": config.normalize_currency(
+                    request.form.get("from_currency", "")),
+                "from_amount": parse_amount(request.form.get("from_amount")),
+                "book_rate": parse_amount(request.form.get("book_rate")),
+                "settle_rate": parse_amount(request.form.get("settle_rate")),
+                "to_currency": config.normalize_currency(
+                    request.form.get("to_currency", "")),
+                "to_amount": parse_amount(request.form.get("to_amount")),
+                "notes": request.form.get("notes", ""),
+            }
+            if rec["from_currency"] == rec["to_currency"]:
+                return _go("fx", "换出与换入币种不能相同", False)
+            database.save_fx_order(rec)
+            return _go("fx", "已保存兑换单")
+        except Exception as e:  # noqa: BLE001
+            return _go("fx", str(e), False)
+    rows = list(reversed(database.list_fx_orders()))
+    for r in rows:
+        r["from_label"] = config.currency_label(r.get("from_currency"))
+        r["to_label"] = config.currency_label(r.get("to_currency"))
+    cur_list = [{"code": c, "label": config.currency_label(c)}
+                for c in config.PAY_CURRENCIES]
+    edit_id = request.args.get("edit", type=int)
+    edit = database.get_fx_order(edit_id) if edit_id else None
+    voucher = None
+    if edit:
+        voucher = fx_mod.build_voucher(edit)
+    return render_template(
+        "fx.html", active="fx", rows=rows, today=_today(),
+        currencies=cur_list, edit=edit, voucher=voucher)
+
+
+@app.post("/fx/delete/<int:rec_id>")
+def fx_delete(rec_id):
+    database.delete_fx_order(rec_id)
+    return _go("fx", "已删除该笔兑换单")
 
 
 # ------------------------------------------------------------------ 单据

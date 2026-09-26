@@ -144,6 +144,21 @@ CREATE TABLE IF NOT EXISTS daily_expense_items (
     created_at TEXT DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS fx_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,                   -- 业务日期
+    from_currency TEXT DEFAULT '',         -- 换出币种（外币原币）
+    from_amount REAL DEFAULT 0,            -- 换出原币金额
+    book_rate REAL DEFAULT 0,              -- 账面汇率（本位币 / 1 单位换出币种，历史 carrying 汇率）
+    settle_rate REAL DEFAULT 0,            -- 结汇汇率（本位币 / 1 单位换出币种，本次实际成交汇率）
+    to_currency TEXT DEFAULT '',           -- 换入币种
+    to_amount REAL DEFAULT 0,             -- 换入原币金额
+    home_amount REAL DEFAULT 0,            -- 本位币到账（= from_amount * settle_rate）
+    gain_loss REAL DEFAULT 0,              -- 汇兑损益（= home_amount - from_amount * book_rate）
+    notes TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS supplier_settlements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL,
@@ -1327,6 +1342,97 @@ def reassign_expense_category(old_key: str, new_key: str) -> int:
             (new, old))
         conn.commit()
         return cur.rowcount
+    finally:
+        conn.close()
+
+
+# ------------------------------------------------------------------ fx_orders (结汇/兑换单)
+def save_fx_order(rec: dict) -> int:
+    """保存一笔结汇/兑换单，自动计算本位币到账与汇兑损益。
+
+    rec 字段：id(可选), date, from_currency, from_amount, book_rate,
+    settle_rate, to_currency, to_amount, notes
+    返回记录 id。
+    """
+    from_amount = float(rec.get("from_amount") or 0)
+    settle_rate = float(rec.get("settle_rate") or 0)
+    book_rate = float(rec.get("book_rate") or 0)
+    home_amount = round(from_amount * settle_rate, 4)
+    gain_loss = round(home_amount - from_amount * book_rate, 4)
+    data = {
+        "date": _date_or_iso(rec.get("date")),
+        "from_currency": (rec.get("from_currency") or "").strip(),
+        "from_amount": from_amount,
+        "book_rate": book_rate,
+        "settle_rate": settle_rate,
+        "to_currency": (rec.get("to_currency") or "").strip(),
+        "to_amount": float(rec.get("to_amount") or 0),
+        "home_amount": home_amount,
+        "gain_loss": gain_loss,
+        "notes": rec.get("notes", ""),
+    }
+    conn = get_conn()
+    try:
+        rec_id = rec.get("id")
+        if rec_id:
+            conn.execute(
+                """UPDATE fx_orders SET date=:date, from_currency=:from_currency,
+                   from_amount=:from_amount, book_rate=:book_rate,
+                   settle_rate=:settle_rate, to_currency=:to_currency,
+                   to_amount=:to_amount, home_amount=:home_amount,
+                   gain_loss=:gain_loss, notes=:notes WHERE id=:id""",
+                {**data, "id": rec_id})
+        else:
+            cur = conn.execute(
+                """INSERT INTO fx_orders
+                   (date, from_currency, from_amount, book_rate, settle_rate,
+                    to_currency, to_amount, home_amount, gain_loss, notes)
+                   VALUES (:date, :from_currency, :from_amount, :book_rate,
+                           :settle_rate, :to_currency, :to_amount, :home_amount,
+                           :gain_loss, :notes)""",
+                data)
+            rec_id = cur.lastrowid
+        conn.commit()
+        return rec_id
+    finally:
+        conn.close()
+
+
+def list_fx_orders(date_from=None, date_to=None) -> list:
+    conn = get_conn()
+    sql = "SELECT * FROM fx_orders"
+    conds, args = [], []
+    if date_from:
+        conds.append("date >= ?")
+        args.append(date_from)
+    if date_to:
+        conds.append("date <= ?")
+        args.append(date_to)
+    if conds:
+        sql += " WHERE " + " AND ".join(conds)
+    sql += " ORDER BY date IS NULL, date DESC, id DESC"
+    try:
+        rows = conn.execute(sql, args).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_fx_order(rec_id: int) -> dict:
+    conn = get_conn()
+    try:
+        row = conn.execute("SELECT * FROM fx_orders WHERE id = ?",
+                           (rec_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def delete_fx_order(rec_id: int):
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM fx_orders WHERE id = ?", (rec_id,))
+        conn.commit()
     finally:
         conn.close()
 
