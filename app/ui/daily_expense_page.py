@@ -165,6 +165,14 @@ class DailyExpensePage:
             f, text="录入 / 编辑（同一天可录入多笔不同币种 / 付款方式）", padding=10)
         form.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
 
+        # -------------------------------------------------------- 类别管理
+        self.cat_mgr = ttk.LabelFrame(
+            f, text="费用类别管理（内置类别不可改；自定义可改名 / 删除）", padding=10)
+        self.cat_mgr.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
+        self.cat_list = ttk.Frame(self.cat_mgr)
+        self.cat_list.pack(fill="x")
+        self._refresh_category_manager()
+
         ttk.Label(form, text="日期").grid(row=0, column=0, sticky="w", pady=3)
         self.vars["date"] = tk.StringVar(value=date_iso(datetime.date.today()))
         ttk.Entry(form, textvariable=self.vars["date"], width=14).grid(
@@ -246,8 +254,67 @@ class DailyExpensePage:
             return
         key = settings.add_expense_category(name)
         self._reload_categories()
+        self._reload_stores()  # 确保表单下拉刷新
         self.vars["category"].set(self._key_to_label.get(key, name.strip()))
+        self._refresh_category_manager()
         self.status.config(text=f"已新增费用类别：{self._key_to_label.get(key, name)}",
+                           foreground="green")
+
+    # ------------------------------------------------------ 费用类别管理（改名/删除）
+    def _refresh_category_manager(self):
+        """重新渲染类别管理区：内置类别只读，自定义类别可改名/删除。"""
+        for w in self.cat_list.winfo_children():
+            w.destroy()
+        cats = settings.get_expense_categories()
+        for key, label in cats:
+            row = ttk.Frame(self.cat_list)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=label, width=22, anchor="w").pack(side="left")
+            if settings.is_builtin_expense_category(key):
+                ttk.Label(row, text="（内置）", foreground="gray").pack(side="left")
+            else:
+                ttk.Button(row, text="重命名", width=8,
+                           command=lambda k=key: self._rename_category(k)).pack(
+                    side="left", padx=4)
+                ttk.Button(row, text="删除", width=8,
+                           command=lambda k=key: self._delete_category(k)).pack(
+                    side="left", padx=4)
+
+    def _rename_category(self, old_key):
+        """重命名一个自定义类别，并同步更新已录入的支出明细。"""
+        new = simpledialog.askstring(
+            "重命名费用类别", f"将「{old_key}」改为：", parent=self.frame)
+        if not new or not new.strip():
+            return
+        try:
+            new_key = settings.rename_expense_category(old_key, new)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("无法改名", str(e), parent=self.frame)
+            return
+        self._reload_categories()
+        if self.vars["category"].get() == old_key:
+            self.vars["category"].set(new_key)
+        self._refresh_category_manager()
+        self.status.config(text=f"已改名：{old_key} → {new_key}", foreground="green")
+
+    def _delete_category(self, key):
+        """删除一个自定义类别，其名下明细改挂到默认内置类别。"""
+        if not messagebox.askyesno(
+                "删除费用类别",
+                f"确定删除「{key}」？\n其名下的支出明细将改挂到默认类别「"
+                f"{config.EXPENSE_CATEGORIES[0][1]}」，不会丢失。",
+                parent=self.frame):
+            return
+        try:
+            moved = settings.delete_expense_category(key)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("无法删除", str(e), parent=self.frame)
+            return
+        self._reload_categories()
+        if self.vars["category"].get() == key:
+            self.vars["category"].set(self._default_category())
+        self._refresh_category_manager()
+        self.status.config(text=f"已删除「{key}」，{moved} 笔明细已改挂默认类别",
                            foreground="green")
 
     # ------------------------------------------------------------ 数据

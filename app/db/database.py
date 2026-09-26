@@ -1311,6 +1311,26 @@ def delete_daily_expense_item(rec_id: int):
         conn.close()
 
 
+def reassign_expense_category(old_key: str, new_key: str) -> int:
+    """把引用 old_key 的支出明细改挂到 new_key（改名/删除类别时调用）。
+
+    返回被更新的明细条数。
+    """
+    old = (old_key or "").strip()
+    new = (new_key or "").strip()
+    if not old or not new or old == new:
+        return 0
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "UPDATE daily_expense_items SET category = ? WHERE category = ?",
+            (new, old))
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()
+
+
 # ------------------------------------------------------------------ supplier_settlements
 
 def _calc_supplier_pay(rec: dict):

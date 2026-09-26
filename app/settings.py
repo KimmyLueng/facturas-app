@@ -101,3 +101,74 @@ def add_expense_category(label: str) -> str:
         s["expense_categories"] = customs
         save_settings(s)
     return name
+
+
+def get_custom_expense_categories() -> list:
+    """仅返回用户自定义的类别名称列表（内置类别不可改名/删除）。"""
+    return [str(x).strip() for x in (load_settings().get("expense_categories") or [])
+            if str(x).strip()]
+
+
+def is_builtin_expense_category(label: str) -> bool:
+    """判断某类别名是否为内置类别（内置类别只允许选用，不允许改名/删除）。"""
+    name = (label or "").strip()
+    for _k, builtin_label in config.EXPENSE_CATEGORIES:
+        if name in (builtin_label, _k):
+            return True
+    return False
+
+
+def rename_expense_category(old_label: str, new_label: str) -> str:
+    """重命名一个自定义费用类别，并同步更新已录入的支出明细。
+
+    内置类别不可改名；新名称与已有类别（内置或自定义）重复时报错。
+    返回新的 key（自定义类别 key 即名称本身）。
+    """
+    old = (old_label or "").strip()
+    new = (new_label or "").strip()
+    if not old or not new:
+        raise ValueError("类别名不能为空")
+    if is_builtin_expense_category(old):
+        raise ValueError("内置类别不可改名")
+    if is_builtin_expense_category(new):
+        raise ValueError("该名称与内置类别冲突")
+    customs = get_custom_expense_categories()
+    if old not in customs:
+        raise ValueError("待改名的类别不存在")
+    others = [c for c in customs if c != old]
+    if new in others:
+        raise ValueError("已存在同名类别")
+
+    s = load_settings()
+    s["expense_categories"] = [new if c == old else c for c in customs]
+    save_settings(s)
+
+    # 同步更新已录入明细里引用该类别的记录（category 存的是 key=名称）
+    from app.db import database
+    database.reassign_expense_category(old, new)
+    return new
+
+
+def delete_expense_category(label: str) -> int:
+    """删除一个自定义费用类别，并把它名下的支出明细改挂到默认内置类别。
+
+    内置类别不可删除。返回被改挂的明细条数。
+    """
+    name = (label or "").strip()
+    if not name:
+        raise ValueError("类别名不能为空")
+    if is_builtin_expense_category(name):
+        raise ValueError("内置类别不可删除")
+    customs = get_custom_expense_categories()
+    if name not in customs:
+        raise ValueError("待删除的类别不存在")
+
+    s = load_settings()
+    s["expense_categories"] = [c for c in customs if c != name]
+    save_settings(s)
+
+    # 名下明细改挂到第一个内置类别，避免数据丢失
+    fallback = config.EXPENSE_CATEGORIES[0][0]
+    from app.db import database
+    return database.reassign_expense_category(name, fallback)
+
