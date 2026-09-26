@@ -45,7 +45,7 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.title("Gestion de Facturas · 西班牙语单据财务管理系统")
         self.geometry("1180x760")
-        self.minsize(980, 620)
+        self.minsize(860, 600)
 
         style = ttk.Style(self)
         try:

@@ -8,7 +8,8 @@
   --ok: #157347;
   --err: #b02a37;
 }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font-family: "Microsoft YaHei UI", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
@@ -19,11 +20,11 @@ header {
   padding: 10px 14px; position: sticky; top: 0; z-index: 10;
 }
 .brand { font-weight: 700; color: var(--brand); letter-spacing: .5px; }
-nav { margin-top: 8px; overflow-x: auto; white-space: nowrap; }
+nav { margin-top: 8px; display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; }
 nav a {
-  display: inline-block; padding: 6px 12px; margin-right: 6px;
+  display: inline-block; padding: 6px 12px;
   color: var(--muted); text-decoration: none; border-radius: 16px;
-  background: #f0f2f5; font-size: 14px;
+  background: #f0f2f5; font-size: 14px; flex: 0 0 auto;
 }
 nav a.on { background: var(--brand); color: #fff; }
 main { padding: 14px; max-width: 1100px; margin: 0 auto; }
@@ -45,25 +46,30 @@ input, select, textarea {
   display: block; width: 100%; margin-top: 4px; padding: 9px 10px;
   border: 1px solid var(--line); border-radius: 8px; font-size: 15px;
   background: #fff; color: var(--text);
+  min-height: 40px;
+}
+input[type="checkbox"], input[type="radio"] {
+  display: inline-block; width: auto; min-height: auto; margin-right: 6px;
 }
 .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
 button, .btn {
   background: var(--brand); color: #fff; border: 0; border-radius: 8px;
   padding: 10px 16px; font-size: 15px; cursor: pointer; text-decoration: none;
   display: inline-block; margin: 4px 6px 4px 0;
+  min-height: 40px;
 }
 button.secondary, .btn.secondary { background: #6b7280; }
 button.danger { background: var(--err); }
 button.link {
   background: none; color: var(--err); padding: 0; border: 0; font-size: 13px;
-  text-decoration: underline;
+  text-decoration: underline; min-height: auto;
 }
 
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 10px; }
 table { width: 100%; border-collapse: collapse; background: #fff; font-size: 14px; }
 th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
 th { background: #f0f2f5; font-weight: 600; white-space: nowrap; }
 td.num, th.num { text-align: right; white-space: nowrap; }
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
 .indent-1 { padding-left: 22px; }
 .indent-2 { padding-left: 40px; }
 .indent-3 { padding-left: 58px; }
@@ -75,3 +81,38 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .alert.err { background: #fbe9ec; color: var(--err); }
 .hint { color: var(--muted); font-size: 13px; }
 .empty { color: var(--muted); padding: 16px; text-align: center; }
+
+/* 平板：表单双列，更紧凑 */
+@media (max-width: 1024px) {
+  main { max-width: 100%; padding: 12px; }
+  .grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+  .form-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* 手机：单列、大触控区域、导航横向滚动 */
+@media (max-width: 640px) {
+  body { font-size: 15px; }
+  header { padding: 8px 10px; }
+  .brand { font-size: 15px; }
+  nav { margin-top: 6px; gap: 5px; }
+  nav a { padding: 6px 10px; font-size: 13px; }
+  main { padding: 8px; }
+  h2 { font-size: 17px; }
+  h3 { font-size: 14px; }
+  .card { padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat { padding: 10px; }
+  .stat .k { font-size: 12px; }
+  .stat .v { font-size: 17px; }
+  .form-row { grid-template-columns: 1fr; gap: 8px; }
+  input, select, textarea { min-height: 44px; font-size: 16px; padding: 10px; }
+  button, .btn { min-height: 44px; padding: 10px 14px; font-size: 16px; }
+  table { font-size: 13px; }
+  th, td { padding: 6px 8px; }
+  footer { font-size: 11px; padding-bottom: 20px; }
+}
+
+/* 小屏手机：仪表盘卡片单列 */
+@media (max-width: 360px) {
+  .grid { grid-template-columns: 1fr; }
+}
