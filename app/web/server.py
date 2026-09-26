@@ -19,6 +19,7 @@ from app import config
 from app import settings as settings_mod
 from app.accounting import reports as reports_mod
 from app.accounting import fx as fx_mod
+from app.accounting import rates as rates_mod
 from app.db import database
 from app.sync import manager as sync_mgr
 from app.utils import (date_iso, format_amount, format_base_amount,
@@ -238,6 +239,22 @@ def fx():
 def fx_delete(rec_id):
     database.delete_fx_order(rec_id)
     return _go("fx", "已删除该笔兑换单")
+
+
+@app.get("/fx/api/rates")
+def fx_api_rates():
+    """按录入日期取币种汇率（本位币/1单位币种），前端自动带出。"""
+    date = request.args.get("date", "")
+    from_currency = config.normalize_currency(request.args.get("from_currency", ""))
+    to_currency = config.normalize_currency(request.args.get("to_currency", ""))
+    from_rate = rates_mod.rate_on_date(date, from_currency) if date else None
+    to_rate = rates_mod.rate_on_date(date, to_currency) if date else None
+    has_hist = database.get_rate_on_or_before(date, from_currency) is not None
+    return {
+        "from_rate": from_rate,
+        "to_rate": to_rate,
+        "has_history": has_hist,
+    }
 
 
 # ------------------------------------------------------------------ 单据

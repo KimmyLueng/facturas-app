@@ -159,6 +159,13 @@ CREATE TABLE IF NOT EXISTS fx_orders (
     created_at TEXT DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS exchange_rates (
+    date TEXT NOT NULL,                 -- 业务日期（YYYY-MM-DD）
+    currency TEXT NOT NULL,             -- 币种代码（Bs/USD/CNY/USDT...）
+    rate REAL NOT NULL,                 -- 1 单位该币种 = rate 本位币
+    PRIMARY KEY (date, currency)
+);
+
 CREATE TABLE IF NOT EXISTS supplier_settlements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL,
@@ -1435,6 +1442,53 @@ def delete_fx_order(rec_id: int):
         conn.commit()
     finally:
         conn.close()
+
+
+# ------------------------------------------------------------------ exchange_rates (按日汇率历史)
+def save_exchange_rate(date: str, currency: str, rate: float):
+    """记录某日期某币种的「1 单位币种 = rate 本位币」汇率（幂等覆盖）。"""
+    conn = get_conn()
+    try:
+        conn.execute(
+            """INSERT INTO exchange_rates (date, currency, rate) VALUES (?, ?, ?)
+               ON CONFLICT(date, currency) DO UPDATE SET rate=excluded.rate""",
+            (date, (currency or "").strip(), float(rate or 0)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_exchange_rate(date: str, currency: str):
+    """取某日期该币种的汇率；不存在返回 None。"""
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            "SELECT rate FROM exchange_rates WHERE date=? AND currency=?",
+            (date, (currency or "").strip())).fetchone()
+        return float(row["rate"]) if row else None
+    finally:
+        conn.close()
+
+
+def get_rate_on_or_before(date: str, currency: str):
+    """取该日期或之前最近一次记录的汇率；都没有返回 None。"""
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            """SELECT rate FROM exchange_rates
+               WHERE currency=? AND date <= ?
+               ORDER BY date DESC LIMIT 1""",
+            ((currency or "").strip(), date)).fetchone()
+        return float(row["rate"]) if row else None
+    finally:
+        conn.close()
+
+
+def save_rates_for_date(date: str, rates: dict):
+    """批量记录某日期的汇率 {currency: rate}。"""
+    for cur, rate in (rates or {}).items():
+        if cur and rate is not None:
+            save_exchange_rate(date, cur, rate)
 
 
 # ------------------------------------------------------------------ supplier_settlements

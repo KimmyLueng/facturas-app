@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from app import config
+from app.accounting import rates as rates_mod
 from app.rates import (fetch_usd_ves, fetch_usd_eur, fetch_usd_cny,
                        CURRENCY_NAMES)
 from app.settings import load_settings, save_settings
@@ -154,6 +155,11 @@ class SettingsPage:
         settings["stores"] = stores or list(config.DEFAULT_STORES)
         save_settings(settings)
         self.app.state.settings = settings
+        # 把当前设置折算出的各币种汇率，按今天记录到汇率历史（供结汇单按业务日期取率）
+        try:
+            rates_mod.record_today_rates()
+        except Exception:  # noqa: BLE001
+            pass
         messagebox.showinfo(
             "已保存",
             f"期初资本 {format_amount(cap, symbols=False)}；本位币 {base_cur}；"
