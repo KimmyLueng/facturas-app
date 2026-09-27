@@ -159,7 +159,7 @@ class FxExchangePage:
             self._busy = False
 
     def _on_date_ccy(self):
-        self._safe(self._refill_rates)
+        self._safe(lambda: self._refill_rates(update_rate=True))
 
     def _on_amount(self):
         self._safe(self._recompute)
@@ -170,17 +170,15 @@ class FxExchangePage:
         t = config.normalize_currency(self.vars["to_currency"].get())
         return rates_mod.cross_rate(f, t, kind, date)
 
-    def _refill_rates(self):
-        """按录入日期带出 BCV / 平行 交叉汇率，并把成交汇率默认设为 BCV。"""
+    def _refill_rates(self, update_rate: bool = False):
+        """按录入日期带出 BCV / 平行 交叉汇率；日期/币种变更时强制同步成交汇率。"""
         bcv = self._current_cross(rates_mod.RATE_BCV)
         par = self._current_cross(rates_mod.RATE_PARALLEL)
         f = config.currency_label(self.vars["from_currency"].get())
         t = config.currency_label(self.vars["to_currency"].get())
         self.vars["bcv_rate"].set(f"1 {f} = {bcv:.4f} {t}")
         self.vars["parallel_rate"].set(f"1 {f} = {par:.4f} {t}")
-        cur_rate = self.vars["rate"].get().strip()
-        # 成交汇率仅在空白/0 时默认填 BCV，避免覆盖用户刚改的值
-        if cur_rate in ("", "0", "0.0", "0.00"):
+        if update_rate and bcv > 0:
             self.vars["rate"].set(f"{bcv:.4f}")
         self._recompute()
 
@@ -251,7 +249,7 @@ class FxExchangePage:
         self.vars["notes"].set(rec["notes"] or "")
         self._last_to = f"{float(rec.get('to_amount') or 0):.2f}"
         self._loading = False
-        self._refill_rates()
+        self._refill_rates(update_rate=False)
         self.status.config(
             text=f"正在编辑：{rec.get('date') or ''}（改完点「保存」）",
             foreground="#1f6feb")

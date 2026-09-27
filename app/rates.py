@@ -12,6 +12,7 @@
         "time_last_update_utc":"..."}
 """
 import json
+import ssl
 import urllib.request
 from typing import Any
 
@@ -41,9 +42,10 @@ _GENERIC_RATES_SOURCES = [
 
 
 def _get_json(url: str, timeout: int = 15) -> Any:
-    """GET JSON，带 UA 与超时。"""
+    """GET JSON，带 UA、超时，并忽略 SSL 证书验证（打包环境常缺少证书）。"""
     req = urllib.request.Request(url, headers={"User-Agent": "GestionFacturas/1.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    ctx = ssl._create_unverified_context()
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -122,75 +124,62 @@ def fetch_usd_eur() -> dict:
     raise RuntimeError(f"无法获取美元/欧元汇率：{last_err}")
 
 
-def fetch_usd_rates(*codes) -> dict:
-    """一次请求获取 1 USD 兑多个币种（带多个备用源）。
-
-    返回 {"EUR": x, "CNY": y, "date": "...", "source": "..."}；
-    任一币种缺失即继续尝试下一个源，全部失败时报错。
-    """
+def fetch_usd_cny() -> dict:
+    """在线获取美元兑人民币汇率（1 USD = X CNY）。"""
     last_err = None
     for url in _GENERIC_RATES_SOURCES:
         try:
             data = _get_json(url)
-            out = {"date": _extract_date(data), "source": url}
-            for c in codes:
-                out[c] = round(_extract_rate(data, c), 4)
-            return out
+            rate = _extract_rate(data, "CNY")
+            return {
+                "usd_cny": round(rate, 4),
+                "date": _extract_date(data),
+                "source": url,
+            }
         except Exception as e:  # noqa: BLE001
             last_err = e
-    raise RuntimeError(f"无法获取 USD 汇率：{last_err}")
-
-
-def fetch_usd_cny() -> dict:
-    """在线获取美元兑人民币汇率（1 USD = X CNY）。"""
-    try:
-        data = fetch_usd_rates("CNY")
-        return {
-            "usd_cny": data["CNY"],
-            "date": data.get("date", ""),
-            "source": data.get("source", ""),
-        }
-    except Exception as e:  # noqa: BLE001
-        raise RuntimeError(f"无法获取美元/人民币汇率：{e}") from e
+    raise RuntimeError(f"无法获取美元/人民币汇率：{last_err}")
 
 
 def convert_to_base(amount: float, currency: str, settings: dict,
-                    doc_rate: float = 0.0):
-    """把单据金额换算为本位币金额。
+                    doc_rate: float = 0.0, date: str = None):
+    """把单据金额换算为本位币金额，按单据日期优先取历史汇率。
 
     参数 doc_rate：单据上标注的汇率（1 USD = X 本国货币），优先于官方汇率。
+    参数 date：业务日期；为空时使用当前设置汇率兜底。
     返回 (换算后金额, 是否成功换算)。
-    - 币种 = 本位币             → 原值
-    - USD：金额 × usd_to_base
-    - Bs（含旧写法 VES）：金额 ÷ 汇率 × usd_to_base（汇率 = 单据自带或官方 usd_ves）
-    - CNY：金额 ÷ 汇率 × usd_to_base（汇率 = 单据自带或设置中的 usd_cny）
-    - 其他/缺汇率              → 原值返回，成功=False（报表提示未换算）
     """
     if not amount:
         return 0.0, True
+
+    from app.accounting import rates as acc_rates
+
     base = config.normalize_currency(
         settings.get("base_currency") or config.DEFAULT_BASE_CURRENCY).upper()
-    cur = config.normalize_currency(currency or base).upper()
+    cur = config.currency_label(currency) or currency or base
+    cur = config.normalize_currency(cur).upper()
     if cur == base:
         return amount, True
 
-    usd_to_base = float(settings.get("usd_to_base") or 0)
-    usd_ves = float(settings.get("usd_ves_official") or 0)
+    # 本位币 → USD 的折算率（按日期取历史，无则取设置）
+    usd_to_base = acc_rates.to_base("USD", acc_rates.RATE_BCV, date)
 
     if cur in ("USD", "USDT"):
-        # USDT 稳定币与美元 1:1 锚定，换算同美元
-        if usd_to_base <= 0:
-            return amount, False
-        return amount * usd_to_base, True
-    if cur == config.CURRENCY_BS.upper():      # Bs（VES/BS 等旧写法已在上方归一）
-        rate = doc_rate or usd_ves
-        if rate <= 0 or usd_to_base <= 0:
-            return amount, False
-        return amount / rate * usd_to_base, True
-    if cur == "CNY":
-        rate = doc_rate or float(settings.get("usd_cny") or 0)
-        if rate <= 0 or usd_to_base <= 0:
-            return amount, False
-        return amount / rate * usd_to_base, True
-    # 其他币种：无汇率，按原值并标记未换算
-    return amount, False
+        rate = usd_to_base
+    elif cur in ("BS", "VES"):
+        # 单据自带汇率 1 USD = X Bs
+        if doc_rate > 0:
+            rate = (usd_to_base / doc_rate) if usd_to_base else 0.0
+        else:
+            rate = acc_rates.to_base(cur, acc_rates.RATE_BCV, date)
+    elif cur == "CNY":
+        if doc_rate > 0:
+            rate = (usd_to_base / doc_rate) if usd_to_base else 0.0
+        else:
+            rate = acc_rates.to_base(cur, acc_rates.RATE_BCV, date)
+    else:
+        return amount, False
+
+    if rate <= 0:
+        return amount, False
+    return amount * rate, True

@@ -688,9 +688,13 @@ def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=No
     for d in docs:
         cur = d.get("currency") or base_currency
         doc_rate = d.get("exchange_rate") or 0.0
-        d["base_orig"], ok_b = convert_to_base(d.get("base"), cur, settings, doc_rate)
-        d["iva_amount_orig"], ok_i = convert_to_base(d.get("iva_amount"), cur, settings, doc_rate)
-        d["total_orig"], ok_t = convert_to_base(d.get("total"), cur, settings, doc_rate)
+        doc_date = d.get("date") or ""
+        d["base_orig"], ok_b = convert_to_base(
+            d.get("base"), cur, settings, doc_rate, doc_date)
+        d["iva_amount_orig"], ok_i = convert_to_base(
+            d.get("iva_amount"), cur, settings, doc_rate, doc_date)
+        d["total_orig"], ok_t = convert_to_base(
+            d.get("total"), cur, settings, doc_rate, doc_date)
         d["base"], d["iva_amount"], d["total"] = (
             d["base_orig"], d["iva_amount_orig"], d["total_orig"])
         if not (ok_b and ok_i and ok_t):
