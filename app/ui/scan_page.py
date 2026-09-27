@@ -251,7 +251,8 @@ class ScanPage:
                 doc["direction"] = direction
             self.app.after(0, lambda: self._show_result(doc, all_lines))
         except Exception as e:  # noqa: BLE001
-            self.app.after(0, lambda: self._show_ocr_error(str(e)))
+            err = str(e)
+            self.app.after(0, lambda: self._show_ocr_error(err))
 
     def _show_ocr_error(self, err):
         self._busy = False

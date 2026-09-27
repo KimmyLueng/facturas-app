@@ -199,7 +199,8 @@ class SettingsPage:
                 cny = None
             self.app.after(0, lambda: self._fetch_done(res, eur, cny))
         except Exception as e:  # noqa: BLE001
-            self.app.after(0, lambda: self._fetch_fail(str(e)))
+            err = str(e)
+            self.app.after(0, lambda: self._fetch_fail(err))
 
     def _fetch_done(self, res, eur, cny=None):
         self.usd_ves_var.set(str(res["usd_ves"]))
