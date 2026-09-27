@@ -436,6 +436,35 @@ def _migrate(conn):
     # 币种归一：VES 与 Bs 是同一种货币，历史库中的 VES / 委内瑞拉玻利瓦尔 统一改为 Bs
     _normalize_currency_columns(conn)
 
+    # 兑换单汇率历史：新增 kind 列（BCV / parallel）并调整主键
+    try:
+        ex_cols = {r["name"]
+                   for r in conn.execute("PRAGMA table_info(exchange_rates)").fetchall()}
+        if "kind" not in ex_cols:
+            conn.execute("""CREATE TABLE IF NOT EXISTS exchange_rates_new (
+                date TEXT NOT NULL,
+                currency TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'bcv',
+                rate REAL NOT NULL,
+                PRIMARY KEY (date, currency, kind)
+            )""")
+            conn.execute(
+                "INSERT INTO exchange_rates_new (date, currency, kind, rate) "
+                "SELECT date, currency, 'bcv', rate FROM exchange_rates")
+            conn.execute("DROP TABLE exchange_rates")
+            conn.execute("ALTER TABLE exchange_rates_new RENAME TO exchange_rates")
+    except sqlite3.OperationalError:
+        pass
+
+    # 兑换单：新增成交交叉汇率 rate 列
+    try:
+        fx_cols = {r["name"]
+                   for r in conn.execute("PRAGMA table_info(fx_orders)").fetchall()}
+        if "rate" not in fx_cols:
+            conn.execute("ALTER TABLE fx_orders ADD COLUMN rate REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
     # 收入日报：把旧版固定 A店/B店 列一次性迁入明细表
     try:
         cnt = conn.execute(
