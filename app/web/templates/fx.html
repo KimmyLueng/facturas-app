@@ -9,7 +9,7 @@
   <input type="hidden" name="id" value="{{ edit.id if edit else '' }}">
   <div class="form-row">
     <label>日期<input type="date" name="date" id="fx_date" value="{{ edit.date if edit else today }}"></label>
-    <label>换出币种
+    <label>换入币种
       <select name="from_currency" id="fx_from">
         {% for c in currencies %}
         <option value="{{ c.code }}" {{ 'selected' if edit and edit.from_currency == c.code }}>{{ c.label }}</option>
@@ -18,18 +18,18 @@
     </label>
     <label>兑换原币金额<input name="from_amount" id="fx_from_amt" inputmode="decimal" required
         value="{{ edit.from_amount if edit else '' }}" placeholder="0.00"></label>
-    <label>成交汇率（1 换出 = X 换入）<input name="rate" id="fx_rate" inputmode="decimal" required
+    <label>成交汇率（1 换入 = X 换出）<input name="rate" id="fx_rate" inputmode="decimal" required
         value="{{ edit.rate if edit else '' }}" placeholder="按日期带出"></label>
   </div>
   <div class="form-row">
-    <label>换入币种
+    <label>换出币种
       <select name="to_currency" id="fx_to">
         {% for c in currencies %}
         <option value="{{ c.code }}" {{ 'selected' if edit and edit.to_currency == c.code }}>{{ c.label }}</option>
         {% endfor %}
       </select>
     </label>
-    <label>换入原币金额<input name="to_amount" id="fx_to_amt" inputmode="decimal" required
+    <label>换出原币金额<input name="to_amount" id="fx_to_amt" inputmode="decimal" required
         value="{{ edit.to_amount if edit else '' }}" placeholder="自动带出"></label>
     <label>备注<input name="notes" value="{{ edit.notes if edit else '' }}"></label>
   </div>
@@ -60,15 +60,15 @@
     {% endfor %}
   </table>
   </div>
-  <p class="muted">本位币到账：<b>{{ voucher.home_amount | num }}</b>　汇兑损益：<b>{{ voucher.gain_loss | num }}</b></p>
+  <p class="muted">本位币到账：<b>{{ voucher.to_amount | num }}</b>　汇兑损益：<b>{{ voucher.gain_loss | num }}</b></p>
 </div>
 {% endif %}
 
 <h3>兑换单列表</h3>
 <div class="table-wrap">
 <table>
-  <tr><th>日期</th><th>换出</th><th class="num">兑换原币</th><th class="num">成交汇率</th>
-      <th>换入</th><th class="num">换入原币</th><th class="num">本位币到账</th>
+  <tr><th>日期</th><th>换入</th><th class="num">兑换原币</th><th class="num">成交汇率</th>
+      <th>换出</th><th class="num">换出原币</th><th class="num">本位币到账</th>
       <th class="num">汇兑损益</th><th>备注</th><th></th></tr>
   {% for r in rows %}
   <tr>
@@ -78,7 +78,7 @@
     <td class="num">{{ r.rate | num }}</td>
     <td>{{ r.to_label or r.to_currency or '' }}</td>
     <td class="num">{{ r.to_amount | num }}</td>
-    <td class="num">{{ r.home_amount | num }}</td>
+    <td class="num">{{ r.to_amount | num }}</td>
     <td class="num">{{ r.gain_loss | num }}</td>
     <td>{{ r.notes or '' }}</td>
     <td>

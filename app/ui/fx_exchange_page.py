@@ -45,11 +45,11 @@ class FxExchangePage:
 
         cols = (
             ("date", "日期", 95),
-            ("from_currency", "换出", 90),
+            ("to_currency", "换出", 90),
             ("from_amount", "兑换原币", 110),
             ("rate", "成交汇率", 100),
-            ("to_currency", "换入", 90),
-            ("to_amount", "换入原币", 110),
+            ("from_currency", "换入", 90),
+            ("to_amount", "换出原币", 110),
             ("home_amount", "本位币到账", 120),
             ("gain_loss", "汇兑损益", 110),
             ("notes", "备注", 150),
@@ -86,17 +86,17 @@ class FxExchangePage:
         ttk.Label(form, text="日期").grid(row=0, column=0, sticky="w", pady=3)
         ttk.Entry(form, textvariable=self.vars["date"], width=14).grid(
             row=0, column=1, sticky="w", padx=8, pady=3)
-        ttk.Label(form, text="换出币种").grid(row=0, column=2, sticky="w", padx=(14, 0))
+        ttk.Label(form, text="换入币种").grid(row=0, column=2, sticky="w", padx=(14, 0))
         ttk.Combobox(form, textvariable=self.vars["from_currency"], state="readonly",
                      width=12, values=cur_labels).grid(row=0, column=3, sticky="w", padx=8)
         ttk.Label(form, text="兑换原币金额").grid(row=0, column=4, sticky="w", padx=(14, 0))
         ttk.Entry(form, textvariable=self.vars["from_amount"], width=14).grid(
             row=0, column=5, sticky="w", padx=8)
 
-        ttk.Label(form, text="换入币种").grid(row=1, column=0, sticky="w", pady=3)
+        ttk.Label(form, text="换出币种").grid(row=1, column=0, sticky="w", pady=3)
         ttk.Combobox(form, textvariable=self.vars["to_currency"], state="readonly",
                      width=12, values=cur_labels).grid(row=1, column=1, sticky="w", padx=8, pady=3)
-        ttk.Label(form, text="成交汇率（1 换出 = X 换入）").grid(
+        ttk.Label(form, text="成交汇率（1 换入 = X 换出）").grid(
             row=1, column=2, sticky="w", padx=(14, 0))
         ttk.Entry(form, textvariable=self.vars["rate"], width=14).grid(
             row=1, column=3, sticky="w", padx=8)
@@ -116,7 +116,7 @@ class FxExchangePage:
         ttk.Label(form, textvariable=self.vars["parallel_rate"],
                   foreground="#9a4b00").grid(row=2, column=4, columnspan=2, sticky="w")
 
-        ttk.Label(form, text="换入原币金额").grid(row=3, column=0, sticky="w", pady=3)
+        ttk.Label(form, text="换出原币金额").grid(row=3, column=0, sticky="w", pady=3)
         ttk.Entry(form, textvariable=self.vars["to_amount"], width=14).grid(
             row=3, column=1, sticky="w", padx=8, pady=3)
         ttk.Label(form, text="（按兑换原币 × 成交汇率自动带出，可手改）").grid(
@@ -211,8 +211,9 @@ class FxExchangePage:
         settle_rate = rate * rates_mod.to_base(t, rates_mod.RATE_BCV, date)
         book_rate = rates_mod.to_base(f, rates_mod.RATE_BCV, date)
         amts = fx_mod.compute_amounts(from_amt, book_rate, settle_rate)
+        home_preview = round(from_amt * rate, 4) if from_amt and rate else amts["home_amount"]
         self.result.config(
-            text=f"本位币到账：{format_amount(amts['home_amount'], symbols=False)}"
+            text=f"本位币到账：{format_amount(home_preview, symbols=False)}"
                  f"　汇兑损益：{format_amount(amts['gain_loss'], symbols=False)}")
 
     # ------------------------------------------------------------ 数据
@@ -221,12 +222,12 @@ class FxExchangePage:
         for r in database.list_fx_orders():
             self.tree.insert("", "end", iid=str(r["id"]), values=(
                 r["date"] or "",
-                config.currency_label(r["from_currency"]) or r["from_currency"],
+                config.currency_label(r["to_currency"]) or r["to_currency"],
                 format_amount(r["from_amount"], symbols=False),
                 format_amount(r["rate"], symbols=False),
-                config.currency_label(r["to_currency"]) or r["to_currency"],
+                config.currency_label(r["from_currency"]) or r["from_currency"],
                 format_amount(r["to_amount"], symbols=False),
-                format_amount(r["home_amount"], symbols=False),
+                format_amount(r["to_amount"], symbols=False),
                 format_amount(r["gain_loss"], symbols=False),
                 r["notes"] or ""))
 
@@ -332,8 +333,8 @@ class FxExchangePage:
         win.title("兑换单凭证")
         win.transient(self.frame)
         ttk.Label(win, text=f"日期：{rec.get('date') or ''}　"
-                  f"换出 {config.currency_label(rec.get('from_currency'))} → "
-                  f"换入 {config.currency_label(rec.get('to_currency'))}",
+                  f"换入 {config.currency_label(rec.get('from_currency'))} → "
+                  f"换出 {config.currency_label(rec.get('to_currency'))}",
                   font=("Microsoft YaHei UI", 11, "bold")).pack(padx=12, pady=8)
         tree = ttk.Treeview(win, columns=("acc", "name", "debit", "credit"),
                             show="headings", height=len(voucher["entries"]) + 1)
@@ -347,7 +348,7 @@ class FxExchangePage:
                 format_amount(e["debit"], symbols=False),
                 format_amount(e["credit"], symbols=False)))
         tree.pack(padx=12, pady=6, fill="both", expand=True)
-        ttk.Label(win, text=f"本位币到账：{format_amount(voucher['home_amount'], symbols=False)}"
+        ttk.Label(win, text=f"本位币到账：{format_amount(voucher['to_amount'], symbols=False)}"
                   f"　汇兑损益：{format_amount(voucher['gain_loss'], symbols=False)}",
                   foreground="#1f6feb").pack(padx=12, pady=(0, 10))
         ttk.Button(win, text="关闭", command=win.destroy).pack(pady=(0, 12))

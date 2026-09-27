@@ -91,6 +91,7 @@ def build_voucher(order: dict, chart: dict = None) -> dict:
     return {
         "entries": entries,
         "home_amount": home_amount,
+        "to_amount": to_amount,
         "from_book_value": amts["from_book_value"],
         "gain_loss": gain_loss,
         "balanced": True,
