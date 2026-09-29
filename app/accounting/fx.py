@@ -101,18 +101,21 @@ def build_voucher(order: dict, chart: dict = None) -> dict:
 def book_entries(date_from=None, date_to=None, chart: dict = None) -> tuple:
     """兑换单 → 财务报表分录（与 reports.daily_book_entries 同口径：借正贷负）。
 
-    兑换必然涉及两种币种，报表只按金额汇总，因此**统一按本位币入账**
-    （与单据口径一致），借贷自然平衡：
+    与兑换单凭证一致：**现金两腿按原币入账**，汇兑损益单独列（本位币）：
 
-        借  库存现金（换入币种明细科目）    本位币到账 home_amount
-        贷  库存现金（换出币种明细科目）    换出账面价值 from_amount × book_rate
-        借/贷 汇兑损益                      差额（收益记贷方、损失记借方）
+        借  库存现金（换入币种明细科目）      换入原币 to_amount
+        贷  库存现金（换出币种明细科目）      换出原币 from_amount
+        借/贷 汇兑损益（本位币）              本位币到账 − 换出账面价值
+        借/贷 货币折算差额（权益类）          两腿原币直接相加的差额（对冲）
 
-    from_book_value = home_amount − gain_loss，故 借 = 贷（恒等平衡）。
+    最后一行是对冲：报表把各币种金额直接相加，而 换入原币 ≠ 换出原币，
+    差额记入权益类「货币折算差额」（类似外币报表折算差额），
+    这样科目余额表 / 资产负债表仍然借贷平衡，且利润表里的
+    「汇兑损益」保持真实的经济金额（不会被这个差额污染）。
 
     返回 (entries, stats, unconverted)：
       entries = [(科目编码, 金额), ...]；
-      stats = {fx_count, fx_amount（本位币到账合计）, fx_gain_loss}；
+      stats = {fx_count, fx_amount（换入原币合计）, fx_gain_loss, fx_diff}；
       unconverted = 缺汇率而无法折算的单据日期列表。
     """
     from app.db import database
@@ -132,30 +135,39 @@ def book_entries(date_from=None, date_to=None, chart: dict = None) -> tuple:
         orders = []
 
     entries = []
-    stats = {"fx_count": 0, "fx_amount": 0.0, "fx_gain_loss": 0.0}
+    stats = {"fx_count": 0, "fx_amount": 0.0, "fx_gain_loss": 0.0,
+             "fx_diff": 0.0}
     unconverted = []
 
     cash_root = reports.resolve_account(chart, "cash")
     fx_acc = reports._leaf_account(
         chart, reports.resolve_account(chart, "fx") or config.ACCOUNT_FX)
+    diff_acc = reports._leaf_account(
+        chart, reports.resolve_account(chart, "fx_diff")
+        or config.ACCOUNT_FX_DIFF)
 
     for o in orders or []:
         from_amt = float(o.get("from_amount") or 0)
+        to_amt = float(o.get("to_amount") or 0)
         home = float(o.get("home_amount") or 0)
         gain = float(o.get("gain_loss") or 0)
         if not from_amt:
             continue
-        if not home:      # 成交汇率/官方汇率缺失，无法折算为本位币
+        if not to_amt or not home:   # 成交汇率/官方汇率缺失，无法折算
             unconverted.append(o.get("date") or f"#{o.get('id')}")
             continue
-        book_value = round(home - gain, 4)     # 换出原币的账面本位币价值
         to_acc = reports._currency_leaf(chart, cash_root, o.get("to_currency"))
         from_acc = reports._currency_leaf(chart, cash_root, o.get("from_currency"))
-        entries.append((to_acc, home))         # 借：换入币种现金（本位币到账）
-        entries.append((from_acc, -book_value))  # 贷：换出币种现金（账面价值）
-        entries.append((fx_acc, -gain))        # 贷：汇兑收益（损失为借）
+        # 原币两腿 + 本位币汇兑损益 的差额 → 权益类「货币折算差额」对冲
+        diff = round(from_amt + gain - to_amt, 4)
+        entries.append((to_acc, to_amt))        # 借：换入币种现金（换入原币）
+        entries.append((from_acc, -from_amt))   # 贷：换出币种现金（换出原币）
+        entries.append((fx_acc, -gain))         # 贷：汇兑收益（损失为借）
+        if diff:
+            entries.append((diff_acc, diff))
         stats["fx_count"] += 1
-        stats["fx_amount"] += home
+        stats["fx_amount"] += to_amt
         stats["fx_gain_loss"] += gain
+        stats["fx_diff"] += diff
 
     return entries, stats, unconverted

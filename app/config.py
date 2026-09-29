@@ -295,6 +295,8 @@ ACCOUNT_EXPENSE_RENT = "621"        # Arrendamientos 租赁费（铺租）
 ACCOUNT_EXPENSE_TAX = "631"         # Otros tributos 税金
 ACCOUNT_EXPENSE_OTHER = "629"       # Otros servicios 其他费用（市政管理费/自定义类别）
 ACCOUNT_FX = "670"                   # Diferencias de cambio 汇兑损益（兑换单）
+# 原币入账时，各币种金额直接相加产生的差额 → 权益类对冲科目（非损益）
+ACCOUNT_FX_DIFF = "4003"             # 货币折算差额 / 其他综合收益（权益类）
 
 # 科目显示名称（西班牙语 + 中文）
 ACCOUNT_NAMES = {
@@ -309,6 +311,7 @@ ACCOUNT_NAMES = {
     ACCOUNT_PURCHASES: "Compras 进货",
     ACCOUNT_COST_OF_SALES: "Coste de ventas 销售成本",
     ACCOUNT_IVA_INPUT: "HP IVA Soportado 进项税",
+    ACCOUNT_FX_DIFF: "货币折算差额（各币种原币相加差额）",
     ACCOUNT_IVA_OUTPUT: "HP IVA Repercutido 销项税",
     ACCOUNT_EXPENSE_SALARY: "Sueldos 工资",
     ACCOUNT_EXPENSE_WELFARE: "Prestaciones 福利费",
@@ -356,6 +359,9 @@ ACCOUNTING_MAP = {
     # 汇兑损益：小企业准则 5603 财务费用 / 企业准则 6603 财务费用 / PGC 670
     "fx": (["560301", "5603", "6603", "670"], ["汇兑损益", "汇兑", "兑换损益",
                                                "diferencias de cambio"]),
+    # 货币折算差额：优先 其他综合收益(4003) → 利润分配/本年利润 → 名称匹配
+    "fx_diff": (["4003", "3104", "3103"],
+                ["货币折算差额", "外币报表折算差额", "折算差额", "其他综合收益"]),
 }
 
 # 科目类别（按《小企业会计准则》编码首位）
@@ -390,6 +396,7 @@ CATEGORY_OVERRIDES = {
     ACCOUNT_EXPENSE_TAX: "pnl",       # 631 Otros tributos
     ACCOUNT_EXPENSE_OTHER: "pnl",     # 629 Otros servicios
     ACCOUNT_FX: "pnl",                # 670 Diferencias de cambio 汇兑损益（损益类）
+    ACCOUNT_FX_DIFF: "equity",        # 4003 货币折算差额（权益类，不进利润表）
 }
 
 

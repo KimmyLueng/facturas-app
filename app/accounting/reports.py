@@ -85,6 +85,7 @@ FALLBACK_ACCOUNTS = {
     "expense_rent": config.ACCOUNT_EXPENSE_RENT,
     "expense_other": config.ACCOUNT_EXPENSE_OTHER,
     "fx": config.ACCOUNT_FX,
+    "fx_diff": config.ACCOUNT_FX_DIFF,
 }
 
 
@@ -734,14 +735,22 @@ def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=No
         "fx_orders": fx_stats["fx_count"],
         "fx_amount": round(fx_stats["fx_amount"], 2),
         "fx_gain_loss": round(fx_stats["fx_gain_loss"], 2),
+        "fx_diff": round(fx_stats["fx_diff"], 2),
     }
     report["currency_note"] = ""
     unconverted = unconverted + daily_unconverted + fx_unconverted
+    notes = []
     if unconverted:
-        report["currency_note"] = (
+        notes.append(
             f"注意：{len(unconverted)} 笔（单据/日报/兑换单）币种或汇率缺失，金额按原值计入"
             f"（{', '.join(unconverted[:5])}{'…' if len(unconverted) > 5 else ''}），"
             "请检查币种与官方汇率设置。")
+    if fx_stats["fx_count"]:
+        notes.append(
+            "兑换单按**原币**入账（换入/换出现金各记其币种原值），汇兑损益按本位币单独列示；"
+            f"两腿原币相加的差额 {round(fx_stats['fx_diff'], 2):,.2f} 计入权益类"
+            "「货币折算差额」科目（不进利润表），因此借贷仍平衡。")
+    report["currency_note"] = "\n".join(notes)
     return report, docs
 
 

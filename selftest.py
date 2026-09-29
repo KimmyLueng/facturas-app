@@ -702,13 +702,13 @@ def main():
         "book_rate": 360.0, "settle_rate": 365.0, "to_currency": "Bs",
         "rate": 365.0, "to_amount": 36500.0, "notes": ""})
     fx_entries, fx_stats, fx_un = fx_mod.book_entries(None, None)
-    check("兑换单生成 3 条分录（借换入 / 贷换出 / 汇兑损益）",
-          len(fx_entries) == 3 and not fx_un, f"got={fx_entries} un={fx_un}")
-    check("本位币到账 36.500 / 汇兑收益 500",
+    check("兑换单生成 4 条分录（借换入原币 / 贷换出原币 / 汇兑损益 / 折算差额）",
+          len(fx_entries) == 4 and not fx_un, f"got={fx_entries} un={fx_un}")
+    check("换入原币 36.500 / 汇兑收益 500 / 折算差额 35.900",
           abs(fx_stats["fx_amount"] - 36500) < 0.01
-          and abs(fx_stats["fx_gain_loss"] - 500) < 0.01,
-          f"got={fx_stats}")
-    check("兑换单分录借贷平衡（借 36.500 = 贷 36.000 + 500）",
+          and abs(fx_stats["fx_gain_loss"] - 500) < 0.01
+          and abs(fx_stats["fx_diff"] + 35900) < 0.01, f"got={fx_stats}")
+    check("兑换单分录借贷平衡（36.500 = 100 + 500 + 35.900）",
           abs(sum(a for _c, a in fx_entries)) < 0.01, f"got={fx_entries}")
     rep3 = reports.get_report("trial")
     rep3 = rep3[0] if isinstance(rep3, tuple) else rep3
@@ -717,10 +717,16 @@ def main():
     check("科目余额表反映兑换单：库存现金（Bs）借 36.600",
           abs(tb3["100101"]["debit"] - 36600) < 0.01,
           f"got={tb3.get('100101')}")
-    # 100102 已有 6h2 的支出日报 USD 260 → 合计贷 36.260
-    check("科目余额表反映兑换单：库存现金（USD）贷 36.260",
-          abs(tb3["100102"]["credit"] - 36260) < 0.01,
+    # 100102 已有 6h2 的支出日报 USD 260，加上换出原币 100 → 合计贷 360（原币）
+    check("科目余额表反映兑换单：库存现金（USD）贷 360（原币 260 + 100）",
+          abs(tb3["100102"]["credit"] - 360) < 0.01,
           f"got={tb3.get('100102')}")
+    diff_code = reports._leaf_account(
+        reports.load_chart_index(),
+        reports.resolve_account(reports.load_chart_index(), "fx_diff"))
+    check("折算差额计入权益类「货币折算差额」贷 35.900",
+          abs((tb3.get(diff_code) or {}).get("credit", 0) - 35900) < 0.01,
+          f"code={diff_code} got={tb3.get(diff_code)}")
     fx_code = reports._leaf_account(
         reports.load_chart_index(),
         reports.resolve_account(reports.load_chart_index(), "fx"))
@@ -741,6 +747,9 @@ def main():
     inc3 = inc3[0] if isinstance(inc3, tuple) else inc3
     check("利润表体现汇兑损益",
           any("汇兑" in (r.get("name") or "") for r in inc3["rows"]),
+          f"got={[(r['name'], r['amount']) for r in inc3['rows']]}")
+    check("折算差额不进利润表（属权益类）",
+          not any("折算差额" in (r.get("name") or "") for r in inc3["rows"]),
           f"got={[(r['name'], r['amount']) for r in inc3['rows']]}")
     check("get_report 数据来源含兑换单统计",
           (rep3.get("sources") or {}).get("fx_orders") == 1
