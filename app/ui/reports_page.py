@@ -139,7 +139,7 @@ class ReportsPage:
         return config.currency_label(self._base_code())
 
     def _src_text(self) -> str:
-        """数据来源说明：单据 + 店铺收入/支出日报（模块关联）。"""
+        """数据来源说明：单据 + 店铺收入/支出日报 + 兑换单（模块关联）。"""
         s = (self.report or {}).get("sources") or {}
         parts = [f"{s.get('docs', len(self.docs))} 张单据"]
         if s.get("income_rows"):
@@ -148,6 +148,10 @@ class ReportsPage:
         if s.get("expense_rows"):
             parts.append(f"支出日报 {s['expense_rows']} 笔"
                          f" {self._fmt(s.get('expense_amount', 0.0))}")
+        if s.get("fx_orders"):
+            parts.append(f"兑换单 {s['fx_orders']} 笔"
+                         f" {self._fmt(s.get('fx_amount', 0.0))}"
+                         f"（汇兑损益 {self._fmt(s.get('fx_gain_loss', 0.0))}）")
         return " · ".join(parts)
 
     def _two_cols(self) -> list:

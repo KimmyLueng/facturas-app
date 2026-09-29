@@ -100,7 +100,21 @@ def main():
           detect_currency(["Tasa: 36,50", "TOTAL $ 100,00"]) == "USD")
 
     print("== 5. 汇率换算 ==")
-    st_eur = {"base_currency": "EUR", "usd_to_base": 0.92, "usd_ves_official": 785.07}
+    # 汇率统一从「库里的设置 / 历史汇率」取（app.accounting.rates），
+    # 这里用临时库固定汇率，避免用例依赖本机真实数据。
+    from app import settings as _st_mod
+    _rate_db = os.path.join(tempfile.mkdtemp(prefix="facturas_rates_"), "r.db")
+    _rate_old_db = config.DB_PATH
+    config.DB_PATH = _rate_db
+    database.init_db()
+
+    def _use_rates(st: dict) -> dict:
+        """把汇率写入临时库，供 convert_to_base 取用。"""
+        _st_mod.save_settings(st)
+        return st
+
+    st_eur = _use_rates({"base_currency": "EUR", "usd_to_base": 0.92,
+                         "usd_ves_official": 785.07})
     v, ok = convert_to_base(100, "EUR", st_eur)
     check("EUR 不换算", v == 100 and ok)
     v, ok = convert_to_base(100, "USD", st_eur)
@@ -109,27 +123,37 @@ def main():
     check("Bs→EUR(官方汇率)", abs(v - 92.0) < 0.01 and ok, f"got={v}")
     v, ok = convert_to_base(78507, "VES", st_eur)
     check("旧写法 VES 仍按 Bs 换算", abs(v - 92.0) < 0.01 and ok, f"got={v}")
-    v, ok = convert_to_base(100, "USD", {"base_currency": "EUR", "usd_to_base": 0})
+    # 官方汇率缺失（usd_ves_official = 0）→ 无法折算，标记未换算
+    v, ok = convert_to_base(100, "Bs",
+                            _use_rates({"base_currency": "EUR",
+                                        "usd_to_base": 0.92,
+                                        "usd_ves_official": 0}))
     check("缺汇率标记未换算", not ok)
     v, ok = convert_to_base(36.5, "Bs",
-                            {"base_currency": "EUR", "usd_to_base": 0.92,
-                             "usd_ves_official": 0}, doc_rate=36.5)
+                            _use_rates({"base_currency": "EUR",
+                                        "usd_to_base": 0.92,
+                                        "usd_ves_official": 0}),
+                            doc_rate=36.5)
     check("单据自带汇率优先", abs(v - 0.92) < 0.01 and ok, f"got={v}")
 
     print("== 5b. 人民币（CNY）识别与换算 ==")
-    st_cny = {"base_currency": "USD", "usd_to_base": 1.0, "usd_cny": 7.2}
+    st_cny = _use_rates({"base_currency": "USD", "usd_to_base": 1.0,
+                         "usd_cny": 7.2})
     v, ok = convert_to_base(720, "CNY", st_cny)
     check("CNY→USD（720 ÷ 7.2 = 100）", abs(v - 100.0) < 0.01 and ok, f"got={v}")
     v, ok = convert_to_base(720, "CNY", st_cny, doc_rate=7.2)
     check("CNY 单据自带汇率优先", abs(v - 100.0) < 0.01 and ok, f"got={v}")
-    v, ok = convert_to_base(100, "CNY", {"base_currency": "USD", "usd_to_base": 1.0})
+    v, ok = convert_to_base(100, "CNY",
+                            _use_rates({"base_currency": "USD",
+                                        "usd_to_base": 1.0}))
     check("CNY 缺汇率标记未换算", not ok)
-    st_base_cny = {"base_currency": "CNY", "usd_to_base": 7.2}
+    st_base_cny = _use_rates({"base_currency": "CNY", "usd_to_base": 7.2})
     v, ok = convert_to_base(100, "USD", st_base_cny)
     check("USD→CNY（本位币人民币，100 × 7.2 = 720）",
           abs(v - 720.0) < 0.01 and ok, f"got={v}")
     v, ok = convert_to_base(500, "CNY", st_base_cny)
     check("本位币=CNY 原值返回", v == 500 and ok)
+    config.DB_PATH = _rate_old_db
 
     check("识别 ¥ 为 CNY", detect_currency(["TOTAL ¥ 1.234,56"]) == "CNY",
           f"got={detect_currency(['TOTAL ¥ 1.234,56'])}")
@@ -666,6 +690,63 @@ def main():
           (rep2.get("sources") or {}).get("income_rows") == 2
           and (rep2.get("sources") or {}).get("expense_rows") == 2,
           f"got={rep2.get('sources')}")
+
+    print("== 6h3. 兑换单 → 财务报表（模块关联）==")
+    from app.accounting import fx as fx_mod
+    st = settings_mod.load_settings()
+    st["base_currency"] = "Bs"
+    settings_mod.save_settings(st)
+    # 换出 100 USD（账面 1 USD = 360 Bs），成交 1 USD = 365 Bs → 换入 36.500 Bs
+    database.save_fx_order({
+        "date": "2026-09-02", "from_currency": "USD", "from_amount": 100,
+        "book_rate": 360.0, "settle_rate": 365.0, "to_currency": "Bs",
+        "rate": 365.0, "to_amount": 36500.0, "notes": ""})
+    fx_entries, fx_stats, fx_un = fx_mod.book_entries(None, None)
+    check("兑换单生成 3 条分录（借换入 / 贷换出 / 汇兑损益）",
+          len(fx_entries) == 3 and not fx_un, f"got={fx_entries} un={fx_un}")
+    check("本位币到账 36.500 / 汇兑收益 500",
+          abs(fx_stats["fx_amount"] - 36500) < 0.01
+          and abs(fx_stats["fx_gain_loss"] - 500) < 0.01,
+          f"got={fx_stats}")
+    check("兑换单分录借贷平衡（借 36.500 = 贷 36.000 + 500）",
+          abs(sum(a for _c, a in fx_entries)) < 0.01, f"got={fx_entries}")
+    rep3 = reports.get_report("trial")
+    rep3 = rep3[0] if isinstance(rep3, tuple) else rep3
+    tb3 = {r["code"]: r for r in rep3["rows"]}
+    # 100101 已有 6h2 的收入日报 Bs 100 → 合计借 36.600
+    check("科目余额表反映兑换单：库存现金（Bs）借 36.600",
+          abs(tb3["100101"]["debit"] - 36600) < 0.01,
+          f"got={tb3.get('100101')}")
+    # 100102 已有 6h2 的支出日报 USD 260 → 合计贷 36.260
+    check("科目余额表反映兑换单：库存现金（USD）贷 36.260",
+          abs(tb3["100102"]["credit"] - 36260) < 0.01,
+          f"got={tb3.get('100102')}")
+    fx_code = reports._leaf_account(
+        reports.load_chart_index(),
+        reports.resolve_account(reports.load_chart_index(), "fx"))
+    check("汇兑损益科目贷 500", abs((tb3.get(fx_code) or {}).get("credit", 0)
+                                - 500) < 0.01,
+          f"code={fx_code} got={tb3.get(fx_code)}")
+    check("含兑换单后科目余额表仍借贷平衡",
+          abs(rep3["totals"]["debit"] - rep3["totals"]["credit"]) < 0.01
+          and abs(rep3["totals"]["ending_debit"]
+                  - rep3["totals"]["ending_credit"]) < 0.01,
+          f"got={rep3['totals']}")
+    bs3 = reports.build_balance_sheet(
+        database.list_documents(), 0.0,
+        entries=reports.daily_book_entries(None, None)[0] + fx_entries)
+    check("含兑换单后资产负债表仍平衡", bs3["balanced"],
+          f"activo={bs3['total_activo']} pas+pat={bs3['total_pasivo_pat']}")
+    inc3 = reports.get_report("income")
+    inc3 = inc3[0] if isinstance(inc3, tuple) else inc3
+    check("利润表体现汇兑损益",
+          any("汇兑" in (r.get("name") or "") for r in inc3["rows"]),
+          f"got={[(r['name'], r['amount']) for r in inc3['rows']]}")
+    check("get_report 数据来源含兑换单统计",
+          (rep3.get("sources") or {}).get("fx_orders") == 1
+          and abs((rep3.get("sources") or {}).get("fx_amount", 0) - 36500)
+          < 0.01,
+          f"got={rep3.get('sources')}")
     config.DB_PATH = old_db
 
     print("== 6i. 桌面界面构建 / 报表切换（无显示环境跳过）==")

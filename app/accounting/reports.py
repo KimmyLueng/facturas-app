@@ -708,6 +708,16 @@ def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=No
     entries, daily_stats, daily_unconverted = daily_book_entries(
         date_from, date_to, settings)
 
+    # 兑换单 → 分录（本位币口径：借 换入现金 / 贷 换出现金 / 汇兑损益）
+    try:
+        from app.accounting import fx as fx_mod
+        fx_entries, fx_stats, fx_unconverted = fx_mod.book_entries(
+            date_from, date_to, load_chart_index())
+    except Exception:  # noqa: BLE001  兑换单表缺失 / 旧库时忽略
+        fx_entries, fx_stats, fx_unconverted = [], {
+            "fx_count": 0, "fx_amount": 0.0, "fx_gain_loss": 0.0}, []
+    entries = list(entries) + list(fx_entries)
+
     if doc_type == "trial":
         report = build_trial_balance(docs, capital, year, entries=entries)
     elif doc_type == "balance":
@@ -721,12 +731,15 @@ def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=No
         "income_amount": round(daily_stats["income_amount"], 2),
         "expense_rows": daily_stats["expense_count"],
         "expense_amount": round(daily_stats["expense_amount"], 2),
+        "fx_orders": fx_stats["fx_count"],
+        "fx_amount": round(fx_stats["fx_amount"], 2),
+        "fx_gain_loss": round(fx_stats["fx_gain_loss"], 2),
     }
     report["currency_note"] = ""
-    unconverted = unconverted + daily_unconverted
+    unconverted = unconverted + daily_unconverted + fx_unconverted
     if unconverted:
         report["currency_note"] = (
-            f"注意：{len(unconverted)} 笔（单据/日报）币种或汇率缺失，金额按原值计入"
+            f"注意：{len(unconverted)} 笔（单据/日报/兑换单）币种或汇率缺失，金额按原值计入"
             f"（{', '.join(unconverted[:5])}{'…' if len(unconverted) > 5 else ''}），"
             "请检查币种与官方汇率设置。")
     return report, docs
@@ -770,6 +783,10 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
         f"（{fmt(src.get('income_amount', 0.0))}） · "
         f"店铺支出日报 {src.get('expense_rows', 0)} 笔"
         f"（{fmt(src.get('expense_amount', 0.0))}）")
+    if src.get("fx_orders"):
+        sources_line += (f" · 兑换单 {src.get('fx_orders', 0)} 笔"
+                         f"（{fmt(src.get('fx_amount', 0.0))}，汇兑损益 "
+                         f"{fmt(src.get('fx_gain_loss', 0.0))}）")
 
     doc = SimpleDocTemplate(out_path, pagesize=A4, rightMargin=15*mm,
                             leftMargin=15*mm, topMargin=15*mm, bottomMargin=15*mm)

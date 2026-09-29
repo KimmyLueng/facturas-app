@@ -156,8 +156,10 @@ def convert_to_base(amount: float, currency: str, settings: dict,
 
     base = config.normalize_currency(
         settings.get("base_currency") or config.DEFAULT_BASE_CURRENCY).upper()
-    cur = config.currency_label(currency) or currency or base
-    cur = config.normalize_currency(cur).upper()
+    # 注意：currency_label() 返回「美元（USD）」这类显示名，先转回代码再比对，
+    # 否则中文显示名匹配不到任何分支，所有单据都会被判为「未换算」。
+    cur = config.normalize_currency(
+        config.currency_code(currency) or currency or base).upper()
     if cur == base:
         return amount, True
 

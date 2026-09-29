@@ -25,7 +25,9 @@
   数据来源：单据 {{ sources.get('docs', 0) }} 张 ·
   店铺收入日报 {{ sources.get('income_rows', 0) }} 笔（{{ sources.get('income_amount', 0) | num }}） ·
   店铺支出日报 {{ sources.get('expense_rows', 0) }} 笔（{{ sources.get('expense_amount', 0) | num }}）
-  —— 日报按原币入账（Bs/USD 各记其币种明细科目，如 库存现金（Bs）/（USD）），不换算、金额不带货币符号
+  {% if sources.get('fx_orders') %}· 兑换单 {{ sources.get('fx_orders', 0) }} 笔（{{ sources.get('fx_amount', 0) | num }}，汇兑损益 {{ sources.get('fx_gain_loss', 0) | num }}）
+  {% endif %}
+  —— 日报按原币入账（Bs/USD 各记其币种明细科目，如 库存现金（Bs）/（USD）），不换算；兑换单按本位币入账并结转汇兑损益；金额均不带货币符号
 </p>
 {% endif %}
 

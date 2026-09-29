@@ -353,7 +353,9 @@ ACCOUNTING_MAP = {
     "expense_utilities": (["560211", "5602"], ["水电"]),
     "expense_rent": (["560210", "5602"], ["租赁", "租金", "房租"]),
     "expense_other": (["5602", "5601"], ["管理费用", "其他费用"]),
-    "fx": (["670"], ["汇兑损益", "兑换损益", "diferencias de cambio"]),
+    # 汇兑损益：小企业准则 5603 财务费用 / 企业准则 6603 财务费用 / PGC 670
+    "fx": (["560301", "5603", "6603", "670"], ["汇兑损益", "汇兑", "兑换损益",
+                                               "diferencias de cambio"]),
 }
 
 # 科目类别（按《小企业会计准则》编码首位）
@@ -387,6 +389,7 @@ CATEGORY_OVERRIDES = {
     ACCOUNT_EXPENSE_RENT: "pnl",      # 621 Arrendamientos
     ACCOUNT_EXPENSE_TAX: "pnl",       # 631 Otros tributos
     ACCOUNT_EXPENSE_OTHER: "pnl",     # 629 Otros servicios
+    ACCOUNT_FX: "pnl",                # 670 Diferencias de cambio 汇兑损益（损益类）
 }
 
 
