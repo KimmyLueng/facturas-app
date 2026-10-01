@@ -52,7 +52,8 @@ def _live_to_base(currency: str, kind: str = RATE_BCV) -> float:
     usd_ves_p = float(s.get("usd_ves_parallel") or usd_ves or 0.0)
     usd_cny = float(s.get("usd_cny") or 0.0) or 0.0
 
-    c = (currency or "").strip().upper()
+    # 兼容旧库把显示名（如「美元（USD）」）当币种存库的情况
+    c = (config.currency_code(currency) or currency or "").strip().upper()
     if c == base:
         return 1.0
     if c == "USD":
@@ -77,7 +78,7 @@ def to_base(currency: str, kind: str = RATE_BCV, date: str = None) -> float:
     历史表中若记录了 0 / 负值（如设置未填时 record_today_rates 写入的 0），
     视为「无有效历史」，继续走当前设置兜底，避免把 0 当成真实汇率。
     """
-    cur = (currency or "").strip()
+    cur = (config.currency_code(currency) or currency or "").strip()
     if date:
         hist = database.get_rate_on_or_before(date, cur, kind)
         if hist is not None and hist > 0:

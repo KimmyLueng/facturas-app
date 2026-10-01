@@ -165,8 +165,14 @@ def book_entries(date_from=None, date_to=None, chart: dict = None,
         if not from_amt:
             continue
         odate = o.get("date") or ""
-        # 本位币到账缺失时自动重算：优先单据自带 settle_rate（手改成交汇率），
-        # 否则按换入金额 × 换入币种汇率（口径按 rate_kind 兜底链）折算
+        # 换出账面价值（本位币 / 1 换出币种）：缺失时按口径兜底链重算
+        book = float(o.get("book_rate") or 0)
+        if not book:
+            book = rates_mod.to_base_chain(o.get("from_currency"), odate, prefer)
+        # 本位币到账缺失时自动重算：
+        #   1) 单据自带 settle_rate（手改成交汇率）→ from × settle
+        #   2) 换入金额 × 换入币种汇率（口径按 rate_kind 兜底链）
+        #   3) 换入币种汇率也取不到时，按换出腿本位币价值兜底（汇兑损益记 0）
         if not home:
             settle = float(o.get("settle_rate") or 0)
             if settle > 0:
@@ -175,12 +181,10 @@ def book_entries(date_from=None, date_to=None, chart: dict = None,
                 tb = rates_mod.to_base_chain(o.get("to_currency"), odate, prefer)
                 if tb > 0:
                     home = round(float(to_amt) * tb, 4)
-        # 换出账面价值缺失时同样按口径重算
-        book = float(o.get("book_rate") or 0)
-        if not book:
-            book = rates_mod.to_base_chain(o.get("from_currency"), odate, prefer)
-            if book > 0:
-                gain = round(home - from_amt * book, 4)
+            if not home and book > 0 and from_amt:
+                home = round(from_amt * book, 4)
+        if book > 0:
+            gain = round(home - from_amt * book, 4)
         if not to_amt or not home:   # 成交汇率/官方汇率缺失，无法折算
             unconverted.append(o.get("date") or f"#{o.get('id')}")
             continue

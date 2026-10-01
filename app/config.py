@@ -122,6 +122,8 @@ def normalize_currency(code) -> str:
     主要用途：VES 与 Bs 是同一种货币，统一按 Bs 存储与显示。
     旧库里的 VES / VED / Bs. / 委内瑞拉玻利瓦尔 都会被读成 Bs；
     旧版本存成中文的「美元 / 人民币 / USDT 泰达币」也归一为 USD / CNY / USDT。
+    还兼容显示名带括号代码的写法（如「美元（USD）」→ USD），
+    旧版兑换单等模块曾把显示名直接存库。
     """
     c = str(code or "").strip()
     if not c:
@@ -129,6 +131,15 @@ def normalize_currency(code) -> str:
     up = c.upper()
     if up in _CURRENCY_ALIASES:
         return _CURRENCY_ALIASES[up]
+    # 「显示名（代码）」/「显示名(代码)」→ 取括号内代码再归一
+    for lp, rp in (("（", "）"), ("(", ")")):
+        if lp in c and rp in c:
+            inner = c[c.index(lp) + 1:c.rindex(rp)].strip().upper()
+            if inner in _CURRENCY_ALIASES:
+                return _CURRENCY_ALIASES[inner]
+            for std in CURRENCY_CODES:
+                if inner == std.upper():
+                    return std
     for std in CURRENCY_CODES:
         if up == std.upper():
             return std

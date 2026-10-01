@@ -457,11 +457,72 @@ def _migrate(conn):
         pass
 
     # 兑换单：新增成交交叉汇率 rate 列
+    fx_cols = set()
     try:
         fx_cols = {r["name"]
                    for r in conn.execute("PRAGMA table_info(fx_orders)").fetchall()}
         if "rate" not in fx_cols:
             conn.execute("ALTER TABLE fx_orders ADD COLUMN rate REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    # 旧版本把币种显示名（如「美元（USD）」）直接存库 → 一次性归一为标准代码，
+    # 否则所有汇率查询都匹配不到，兑换单永远被判「币种或汇率缺失」
+    for _tbl, _col in (("fx_orders", "from_currency"),
+                       ("fx_orders", "to_currency"),
+                       ("documents", "currency"),
+                       ("daily_income_rows", "currency"),
+                       ("daily_expense_items", "currency")):
+        try:
+            cols = {r["name"] for r in conn.execute(
+                f"PRAGMA table_info({_tbl})").fetchall()}
+            if _col not in cols:
+                continue
+            rows = conn.execute(
+                f"SELECT rowid AS _rid, {_col} AS _c FROM {_tbl}").fetchall()
+            for r in rows:
+                fixed = config.normalize_currency(r["_c"])
+                if fixed and fixed != r["_c"]:
+                    conn.execute(
+                        f"UPDATE {_tbl} SET {_col}=? WHERE rowid=?",
+                        (fixed, r["_rid"]))
+        except sqlite3.OperationalError:
+            pass
+
+    # 兑换单旧记录：币种归一后重算缺失的本位币到账 / 账面汇率 / 汇兑损益
+    try:
+        if {"home_amount", "from_amount"} <= fx_cols:
+            from app.accounting import rates as _rates
+            for r in conn.execute(
+                    """SELECT id, date, from_currency, from_amount, book_rate,
+                       settle_rate, to_currency, to_amount, home_amount, gain_loss
+                       FROM fx_orders""").fetchall():
+                from_amt = float(r["from_amount"] or 0)
+                to_amt = float(r["to_amount"] or 0)
+                home = float(r["home_amount"] or 0)
+                book = float(r["book_rate"] or 0)
+                gain = float(r["gain_loss"] or 0)
+                if not book:
+                    book = _rates.to_base_chain(r["from_currency"], r["date"])
+                if not home:
+                    settle = float(r["settle_rate"] or 0)
+                    if settle > 0 and from_amt:
+                        home = round(from_amt * settle, 4)
+                    elif to_amt:
+                        tb = _rates.to_base_chain(r["to_currency"], r["date"])
+                        if tb > 0:
+                            home = round(float(to_amt) * tb, 4)
+                    if not home and book > 0 and from_amt:
+                        home = round(from_amt * book, 4)
+                if book > 0:
+                    gain = round(home - from_amt * book, 4)
+                if home != float(r["home_amount"] or 0) or \
+                        book != float(r["book_rate"] or 0) or \
+                        gain != float(r["gain_loss"] or 0):
+                    conn.execute(
+                        """UPDATE fx_orders SET home_amount=?, book_rate=?,
+                           gain_loss=? WHERE id=?""",
+                        (home, book, gain, r["id"]))
     except sqlite3.OperationalError:
         pass
 

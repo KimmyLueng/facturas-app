@@ -206,15 +206,19 @@ def fx():
             t = config.normalize_currency(request.form.get("to_currency", ""))
             rate = parse_amount(request.form.get("rate"))
             # 手改汇率兜底链：BCV → 平行（任一口径缺失自动换下一个）
+            from_amount = parse_amount(request.form.get("from_amount"))
             settle_rate = rate * rates_mod.to_base_chain(t, date) if rate else 0.0
             book_rate = rates_mod.to_base_chain(f, date)
+            if not settle_rate and book_rate > 0:
+                settle_rate = book_rate   # 换入币种汇率缺失时按换出腿本位币价值兜底
             to_amount = parse_amount(request.form.get("to_amount"))
             # settle_rate 仍取不到时，按换入金额 × 换入币种汇率折算本位币到账
             home_amount = None
-            if not settle_rate and to_amount:
-                tb = rates_mod.to_base_chain(t, date)
-                if tb > 0:
-                    home_amount = round(float(to_amount) * tb, 4)
+            if to_amount and rates_mod.to_base_chain(t, date) > 0:
+                home_amount = round(float(to_amount)
+                                    * rates_mod.to_base_chain(t, date), 4)
+            elif home_amount is None and settle_rate > 0 and from_amount:
+                home_amount = round(float(from_amount) * settle_rate, 4)
             rec = {
                 "id": request.form.get("id", type=int) or None,
                 "date": date,
