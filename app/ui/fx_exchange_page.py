@@ -205,13 +205,14 @@ class FxExchangePage:
                     abs(parse_amount(cur_to) - (parse_amount(self._last_to) or -1)) < 1e-6:
                 self.vars["to_amount"].set(f"{new_to:.2f}")
                 self._last_to = f"{new_to:.2f}"
-        # 会计口径：settle_rate = 成交交叉汇率 × 换入币种 to_base；book_rate = 换出币种 BCV to_base
-        settle_rate = rate * rates_mod.to_base(t, rates_mod.RATE_BCV, date)
-        book_rate = rates_mod.to_base(f, rates_mod.RATE_BCV, date)
+        # 会计口径：settle_rate = 成交交叉汇率 × 换入币种汇率；
+        # book_rate = 换出币种汇率。均按 手改→BCV→平行 兜底链取值，
+        # 任一口径缺历史/设置汇率时自动换下一个，不再直接得 0。
+        settle_rate = rate * rates_mod.to_base_chain(t, date) if rate else 0.0
+        book_rate = rates_mod.to_base_chain(f, date)
         amts = fx_mod.compute_amounts(from_amt, book_rate, settle_rate)
-        home_preview = round(from_amt * rate, 4) if from_amt and rate else amts["home_amount"]
         self.result.config(
-            text=f"本位币到账：{format_amount(home_preview, symbols=False)}"
+            text=f"本位币到账：{format_amount(amts['home_amount'], symbols=False)}"
                  f"　汇兑损益：{format_amount(amts['gain_loss'], symbols=False)}")
 
     # ------------------------------------------------------------ 数据
@@ -225,7 +226,7 @@ class FxExchangePage:
                 format_amount(r["rate"], symbols=False),
                 config.currency_label(r["to_currency"]) or r["to_currency"],
                 format_amount(r["to_amount"], symbols=False),
-                format_amount(r["to_amount"], symbols=False),
+                format_amount(r["home_amount"], symbols=False),
                 format_amount(r["gain_loss"], symbols=False),
                 r["notes"] or ""))
 
@@ -262,8 +263,16 @@ class FxExchangePage:
             rate = parse_amount(self.vars["rate"].get())
         except Exception:  # noqa: BLE001
             rate = 0
-        settle_rate = rate * rates_mod.to_base(t, rates_mod.RATE_BCV, date)
-        book_rate = rates_mod.to_base(f, rates_mod.RATE_BCV, date)
+        # 手改汇率兜底链：BCV → 平行（任一口径缺失自动换下一个）
+        settle_rate = rate * rates_mod.to_base_chain(t, date) if rate else 0.0
+        book_rate = rates_mod.to_base_chain(f, date)
+        # 兜底：settle_rate 仍取不到时，按换入金额 × 换入币种汇率折算本位币到账
+        to_amount = parse_amount(self.vars["to_amount"].get())
+        home_amount = None
+        if not settle_rate and to_amount:
+            tb = rates_mod.to_base_chain(t, date)
+            if tb > 0:
+                home_amount = round(float(to_amount) * tb, 4)
         return {
             "id": self.current_id,
             "date": date,
@@ -273,7 +282,8 @@ class FxExchangePage:
             "settle_rate": settle_rate,
             "to_currency": t,
             "rate": rate,
-            "to_amount": parse_amount(self.vars["to_amount"].get()),
+            "to_amount": to_amount,
+            "home_amount": home_amount,
             "notes": self.vars["notes"].get(),
         }
 

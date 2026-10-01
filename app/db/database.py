@@ -1397,7 +1397,13 @@ def save_fx_order(rec: dict) -> int:
     from_amount = float(rec.get("from_amount") or 0)
     settle_rate = float(rec.get("settle_rate") or 0)
     book_rate = float(rec.get("book_rate") or 0)
-    home_amount = round(from_amount * settle_rate, 4)
+    # home_amount：缺省 = from_amount × settle_rate；
+    # 调用方可在 settle_rate 取不到（各口径汇率均缺失）时传入显式兜底值
+    explicit_home = rec.get("home_amount")
+    if explicit_home is not None:
+        home_amount = round(float(explicit_home or 0), 4)
+    else:
+        home_amount = round(from_amount * settle_rate, 4)
     gain_loss = round(home_amount - from_amount * book_rate, 4)
     data = {
         "date": _date_or_iso(rec.get("date")),

@@ -12,6 +12,13 @@
     </label>
     <label>起始日期<input type="date" name="from" value="{{ frm }}"></label>
     <label>结束日期<input type="date" name="to" value="{{ to }}"></label>
+    <label>汇率口径
+      <select name="rate_kind">
+        <option value="manual" {{ 'selected' if rate_kind == 'manual' }}>手改汇率优先（手改→BCV→平行）</option>
+        <option value="bcv" {{ 'selected' if rate_kind == 'bcv' }}>BCV 官方（BCV→平行→手改）</option>
+        <option value="parallel" {{ 'selected' if rate_kind == 'parallel' }}>平行市场（平行→BCV→手改）</option>
+      </select>
+    </label>
   </div>
   <button type="submit">查询</button>
 </form>

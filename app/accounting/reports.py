@@ -668,11 +668,16 @@ def daily_book_entries(date_from=None, date_to=None, settings: dict = None):
     return entries, stats, unconverted
 
 
-def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=None):
+def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0,
+               year=None, rate_kind: str = "manual"):
     """统一入口。doc_type: 'balance' / 'income' / 'trial'
 
     先把各单据金额按币种/汇率换算为本位币，再按科目表生成报表。
     期初余额取该会计年度（year 缺省时按报表起止日期推断）的科目表期初。
+    参数 rate_kind：换算口径
+        · 'auto'/'manual' — 优先单据手改汇率 → BCV 官方 → 平行市场
+        · 'bcv'           — BCV 官方 → 平行 → 手改
+        · 'parallel'      — 平行市场 → BCV → 手改
     """
     docs = database.list_documents(
         date_from=date_from and date_from.strftime("%Y-%m-%d"),
@@ -691,11 +696,11 @@ def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=No
         doc_rate = d.get("exchange_rate") or 0.0
         doc_date = d.get("date") or ""
         d["base_orig"], ok_b = convert_to_base(
-            d.get("base"), cur, settings, doc_rate, doc_date)
+            d.get("base"), cur, settings, doc_rate, doc_date, rate_kind)
         d["iva_amount_orig"], ok_i = convert_to_base(
-            d.get("iva_amount"), cur, settings, doc_rate, doc_date)
+            d.get("iva_amount"), cur, settings, doc_rate, doc_date, rate_kind)
         d["total_orig"], ok_t = convert_to_base(
-            d.get("total"), cur, settings, doc_rate, doc_date)
+            d.get("total"), cur, settings, doc_rate, doc_date, rate_kind)
         d["base"], d["iva_amount"], d["total"] = (
             d["base_orig"], d["iva_amount_orig"], d["total_orig"])
         if not (ok_b and ok_i and ok_t):
@@ -713,7 +718,7 @@ def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=No
     try:
         from app.accounting import fx as fx_mod
         fx_entries, fx_stats, fx_unconverted = fx_mod.book_entries(
-            date_from, date_to, load_chart_index())
+            date_from, date_to, load_chart_index(), rate_kind=rate_kind)
     except Exception:  # noqa: BLE001  兑换单表缺失 / 旧库时忽略
         fx_entries, fx_stats, fx_unconverted = [], {
             "fx_count": 0, "fx_amount": 0.0, "fx_gain_loss": 0.0}, []
@@ -756,7 +761,7 @@ def get_report(doc_type: str, date_from=None, date_to=None, capital=0.0, year=No
 
 # ---------------------------------------------------------------- PDF 导出
 def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
-               out_path: str = None) -> str:
+               out_path: str = None, rate_kind: str = "manual") -> str:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -764,7 +769,8 @@ def export_pdf(doc_type: str, date_from=None, date_to=None, capital=0.0,
     from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
                                     Paragraph, Spacer)
 
-    report, docs = get_report(doc_type, date_from, date_to, capital)
+    report, docs = get_report(doc_type, date_from, date_to, capital,
+                              rate_kind=rate_kind)
     if not out_path:
         import os
         out_path = os.path.join(config.DATA_DIR,

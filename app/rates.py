@@ -142,11 +142,16 @@ def fetch_usd_cny() -> dict:
 
 
 def convert_to_base(amount: float, currency: str, settings: dict,
-                    doc_rate: float = 0.0, date: str = None):
+                    doc_rate: float = 0.0, date: str = None,
+                    rate_kind: str = "auto"):
     """把单据金额换算为本位币金额，按单据日期优先取历史汇率。
 
-    参数 doc_rate：单据上标注的汇率（1 USD = X 本国货币），优先于官方汇率。
+    参数 doc_rate：单据上标注的汇率（1 USD = X 本国货币），即「手改汇率」。
     参数 date：业务日期；为空时使用当前设置汇率兜底。
+    参数 rate_kind：汇率口径
+        · 'auto'/'manual' — 优先手改汇率（doc_rate）→ BCV → 平行
+        · 'bcv'           — BCV 官方 → 平行 → 手改
+        · 'parallel'      — 平行市场 → BCV → 手改
     返回 (换算后金额, 是否成功换算)。
     """
     if not amount:
@@ -163,25 +168,24 @@ def convert_to_base(amount: float, currency: str, settings: dict,
     if cur == base:
         return amount, True
 
-    # 本位币 → USD 的折算率（按日期取历史，无则取设置）
-    usd_to_base = acc_rates.to_base("USD", acc_rates.RATE_BCV, date)
+    chain = acc_rates.KIND_CHAINS.get(
+        (rate_kind or "auto").lower(),
+        acc_rates.KIND_CHAINS[acc_rates.RATE_MANUAL])
 
-    if cur in ("USD", "USDT"):
-        rate = usd_to_base
-    elif cur in ("BS", "VES"):
-        # 单据自带汇率 1 USD = X Bs
-        if doc_rate > 0:
-            rate = (usd_to_base / doc_rate) if usd_to_base else 0.0
-        else:
-            rate = acc_rates.to_base(cur, acc_rates.RATE_BCV, date)
-    elif cur == "CNY":
-        if doc_rate > 0:
-            rate = (usd_to_base / doc_rate) if usd_to_base else 0.0
-        else:
-            rate = acc_rates.to_base(cur, acc_rates.RATE_BCV, date)
-    else:
-        return amount, False
+    def _kind_rate(kind: str) -> float:
+        """某一口径下 1 cur = ? 本位币；取不到返回 0。"""
+        if kind == acc_rates.RATE_MANUAL:
+            # 手改汇率：仅 Bs/CNY 支持单据汇率（1 USD = X 本国货币）
+            if cur in ("BS", "VES", "CNY") and doc_rate > 0:
+                usd_to_base = float(settings.get("usd_to_base") or 0)
+                if usd_to_base <= 0:
+                    usd_to_base = acc_rates.to_base("USD", acc_rates.RATE_BCV, date)
+                return (usd_to_base / doc_rate) if usd_to_base else 0.0
+            return 0.0
+        return acc_rates.to_base(cur, kind, date)
 
-    if rate <= 0:
-        return amount, False
-    return amount * rate, True
+    for kind in chain:
+        rate = _kind_rate(kind)
+        if rate > 0:
+            return amount * rate, True
+    return amount, False

@@ -43,6 +43,19 @@ class ReportsPage:
         self.to_var = tk.StringVar(value=today.strftime("%Y-%m-%d"))
         ttk.Entry(row, textvariable=self.to_var, width=11).pack(side="left")
 
+        ttk.Label(row, text="汇率口径：").pack(side="left", padx=(18, 2))
+        self.rate_kind_var = tk.StringVar(value="manual")
+        self.rate_kind_box = ttk.Combobox(
+            row, textvariable=self.rate_kind_var, state="readonly", width=22,
+            values=["手改汇率优先（手改→BCV→平行）",
+                    "BCV 官方（BCV→平行→手改）",
+                    "平行市场（平行→BCV→手改）"])
+        self._RATE_KINDS = {"手改汇率优先（手改→BCV→平行）": "manual",
+                            "BCV 官方（BCV→平行→手改）": "bcv",
+                            "平行市场（平行→BCV→手改）": "parallel"}
+        self.rate_kind_box.pack(side="left")
+        self.rate_kind_box.current(0)
+
         ttk.Button(row, text="生成报表", command=self._generate).pack(side="left", padx=14)
         self.pdf_btn = ttk.Button(row, text="导出 PDF", command=self._export,
                                   state="disabled")
@@ -102,8 +115,10 @@ class ReportsPage:
             return
         doc_type = self.type_var.get()
         capital = self.app.state.capital()
+        rate_kind = self._RATE_KINDS.get(self.rate_kind_var.get(), "manual")
         try:
-            self.report, self.docs = get_report(doc_type, d_from, d_to, capital)
+            self.report, self.docs = get_report(doc_type, d_from, d_to, capital,
+                                                rate_kind=rate_kind)
             self.pdf_btn.state(["!disabled"])
             self._render()
         except Exception as e:  # noqa: BLE001  生成失败不应让界面崩溃
@@ -278,7 +293,9 @@ class ReportsPage:
             return
         try:
             out = export_pdf(doc_type, d_from, d_to,
-                             self.app.state.capital(), out_path=path)
+                             self.app.state.capital(), out_path=path,
+                             rate_kind=self._RATE_KINDS.get(
+                                 self.rate_kind_var.get(), "manual"))
             messagebox.showinfo("导出成功", f"报表已导出：\n{out}", parent=self.frame)
             os.startfile(out)
         except Exception as e:  # noqa: BLE001

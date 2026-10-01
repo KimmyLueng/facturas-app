@@ -98,7 +98,8 @@ def build_voucher(order: dict, chart: dict = None) -> dict:
     }
 
 
-def book_entries(date_from=None, date_to=None, chart: dict = None) -> tuple:
+def book_entries(date_from=None, date_to=None, chart: dict = None,
+                 rate_kind: str = "manual") -> tuple:
     """兑换单 → 财务报表分录（与 reports.daily_book_entries 同口径：借正贷负）。
 
     与兑换单凭证一致：**现金两腿按原币入账**，汇兑损益单独列（本位币）：
@@ -113,11 +114,17 @@ def book_entries(date_from=None, date_to=None, chart: dict = None) -> tuple:
     这样科目余额表 / 资产负债表仍然借贷平衡，且利润表里的
     「汇兑损益」保持真实的经济金额（不会被这个差额污染）。
 
+    参数 rate_kind：缺失本位币到账时的换算口径
+        'manual'/'auto' — 优先单据手改汇率（rate/settle_rate）→ BCV → 平行
+        'bcv'           — BCV 官方 → 平行 → 手改
+        'parallel'      — 平行市场 → BCV → 手改
+
     返回 (entries, stats, unconverted)：
       entries = [(科目编码, 金额), ...]；
       stats = {fx_count, fx_amount（换入原币合计）, fx_gain_loss, fx_diff}；
       unconverted = 缺汇率而无法折算的单据日期列表。
     """
+    from app.accounting import rates as rates_mod
     from app.db import database
 
     if chart is None:
@@ -125,6 +132,10 @@ def book_entries(date_from=None, date_to=None, chart: dict = None) -> tuple:
             chart = reports.load_chart_index()
         except Exception:  # noqa: BLE001
             chart = {}
+
+    rk = (rate_kind or "manual").lower()
+    prefer = rates_mod.KIND_CHAINS.get(
+        rk, rates_mod.KIND_CHAINS[rates_mod.RATE_MANUAL])
 
     def _iso(d):
         return d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else d
@@ -153,6 +164,23 @@ def book_entries(date_from=None, date_to=None, chart: dict = None) -> tuple:
         gain = float(o.get("gain_loss") or 0)
         if not from_amt:
             continue
+        odate = o.get("date") or ""
+        # 本位币到账缺失时自动重算：优先单据自带 settle_rate（手改成交汇率），
+        # 否则按换入金额 × 换入币种汇率（口径按 rate_kind 兜底链）折算
+        if not home:
+            settle = float(o.get("settle_rate") or 0)
+            if settle > 0:
+                home = round(from_amt * settle, 4)
+            elif to_amt:
+                tb = rates_mod.to_base_chain(o.get("to_currency"), odate, prefer)
+                if tb > 0:
+                    home = round(float(to_amt) * tb, 4)
+        # 换出账面价值缺失时同样按口径重算
+        book = float(o.get("book_rate") or 0)
+        if not book:
+            book = rates_mod.to_base_chain(o.get("from_currency"), odate, prefer)
+            if book > 0:
+                gain = round(home - from_amt * book, 4)
         if not to_amt or not home:   # 成交汇率/官方汇率缺失，无法折算
             unconverted.append(o.get("date") or f"#{o.get('id')}")
             continue

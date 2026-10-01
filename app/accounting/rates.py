@@ -24,6 +24,15 @@ from app.utils import date_iso
 
 RATE_BCV = "bcv"
 RATE_PARALLEL = "parallel"
+# 「手改汇率」口径：优先用单据/兑换单上手工录入的汇率（doc_rate / rate 字段）
+RATE_MANUAL = "manual"
+
+# 报表汇率口径 → 取值顺序（前面取不到时依次向后兜底）
+KIND_CHAINS = {
+    RATE_MANUAL: (RATE_MANUAL, RATE_BCV, RATE_PARALLEL),
+    RATE_BCV: (RATE_BCV, RATE_PARALLEL, RATE_MANUAL),
+    RATE_PARALLEL: (RATE_PARALLEL, RATE_BCV, RATE_MANUAL),
+}
 
 
 def _get_settings() -> dict:
@@ -63,13 +72,30 @@ def _live_rates(kind: str = RATE_BCV) -> dict:
 
 
 def to_base(currency: str, kind: str = RATE_BCV, date: str = None) -> float:
-    """取某口径下 1 单位 currency = 多少本位币（优先该日期历史，否则当前设置兜底）。"""
+    """取某口径下 1 单位 currency = 多少本位币（优先该日期历史，否则当前设置兜底）。
+
+    历史表中若记录了 0 / 负值（如设置未填时 record_today_rates 写入的 0），
+    视为「无有效历史」，继续走当前设置兜底，避免把 0 当成真实汇率。
+    """
     cur = (currency or "").strip()
     if date:
         hist = database.get_rate_on_or_before(date, cur, kind)
-        if hist is not None:
+        if hist is not None and hist > 0:
             return hist
     return _live_to_base(cur, kind)
+
+
+def to_base_chain(currency: str, date: str = None,
+                  prefer: tuple = (RATE_BCV, RATE_PARALLEL)) -> float:
+    """按口径优先级依次取 1 单位 currency = 多少本位币，取到第一个 >0 的值。
+
+    用于「手改汇率 → BCV → 平行」这类兜底链：任一口径缺汇率时自动换下一个。
+    """
+    for k in prefer or (RATE_BCV, RATE_PARALLEL):
+        r = to_base(currency, k, date)
+        if r > 0:
+            return r
+    return 0.0
 
 
 def cross_rate(from_currency: str, to_currency: str,

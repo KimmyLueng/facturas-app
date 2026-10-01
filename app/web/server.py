@@ -205,8 +205,16 @@ def fx():
             f = config.normalize_currency(request.form.get("from_currency", ""))
             t = config.normalize_currency(request.form.get("to_currency", ""))
             rate = parse_amount(request.form.get("rate"))
-            settle_rate = rate * rates_mod.to_base(t, rates_mod.RATE_BCV, date)
-            book_rate = rates_mod.to_base(f, rates_mod.RATE_BCV, date)
+            # 手改汇率兜底链：BCV → 平行（任一口径缺失自动换下一个）
+            settle_rate = rate * rates_mod.to_base_chain(t, date) if rate else 0.0
+            book_rate = rates_mod.to_base_chain(f, date)
+            to_amount = parse_amount(request.form.get("to_amount"))
+            # settle_rate 仍取不到时，按换入金额 × 换入币种汇率折算本位币到账
+            home_amount = None
+            if not settle_rate and to_amount:
+                tb = rates_mod.to_base_chain(t, date)
+                if tb > 0:
+                    home_amount = round(float(to_amount) * tb, 4)
             rec = {
                 "id": request.form.get("id", type=int) or None,
                 "date": date,
@@ -216,7 +224,8 @@ def fx():
                 "settle_rate": settle_rate,
                 "to_currency": t,
                 "rate": rate,
-                "to_amount": parse_amount(request.form.get("to_amount")),
+                "to_amount": to_amount,
+                "home_amount": home_amount,
                 "notes": request.form.get("notes", ""),
             }
             if rec["from_currency"] == rec["to_currency"]:
@@ -390,13 +399,15 @@ def reports():
     rtype = request.args.get("type", "balance")
     frm = request.args.get("from", "")
     to = request.args.get("to", "")
+    rate_kind = request.args.get("rate_kind", "manual")
     dfrom = parse_date(frm) if frm else None
     dto = parse_date(to) if to else None
     capital = float(settings_mod.load_settings().get("capital_inicial", 0) or 0)
     rows, error, trial, src = [], None, None, None
     try:
         # get_report 返回 (报表 dict, 未换算单据 list)
-        res = reports_mod.get_report(rtype, dfrom, dto, capital)
+        res = reports_mod.get_report(rtype, dfrom, dto, capital,
+                                     rate_kind=rate_kind)
         data = res[0] if isinstance(res, tuple) else res
         src = (data or {}).get("sources")
         if rtype == "trial":     # 科目余额表：单独的多列表格
@@ -407,7 +418,7 @@ def reports():
         error = str(e)
     return render_template("reports.html", active="reports", rtype=rtype,
                            rows=rows, error=error, frm=frm, to=to, trial=trial,
-                           sources=src)
+                           sources=src, rate_kind=rate_kind)
 
 
 # ------------------------------------------------------------------ 设置
