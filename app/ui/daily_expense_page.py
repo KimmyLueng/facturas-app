@@ -167,7 +167,7 @@ class DailyExpensePage:
 
         # -------------------------------------------------------- 类别管理
         self.cat_mgr = ttk.LabelFrame(
-            f, text="费用类别管理（内置类别不可改；自定义可改名 / 删除）", padding=10)
+            f, text="费用类别管理（全部类别均可重命名；自定义类别可删除）", padding=10)
         self.cat_mgr.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
         self.cat_list = ttk.Frame(self.cat_mgr)
         self.cat_list.pack(fill="x")
@@ -262,7 +262,7 @@ class DailyExpensePage:
 
     # ------------------------------------------------------ 费用类别管理（改名/删除）
     def _refresh_category_manager(self):
-        """重新渲染类别管理区：内置类别只读，自定义类别可改名/删除。"""
+        """重新渲染类别管理区：全部类别（含内置）可重命名，自定义可删除。"""
         for w in self.cat_list.winfo_children():
             w.destroy()
         cats = settings.get_expense_categories()
@@ -271,7 +271,11 @@ class DailyExpensePage:
             row.pack(fill="x", pady=2)
             ttk.Label(row, text=label, width=22, anchor="w").pack(side="left")
             if settings.is_builtin_expense_category(key):
-                ttk.Label(row, text="（内置）", foreground="gray").pack(side="left")
+                ttk.Label(row, text="（内置·可改名）",
+                          foreground="gray").pack(side="left")
+                ttk.Button(row, text="重命名", width=8,
+                           command=lambda k=key: self._rename_category(k)).pack(
+                    side="left", padx=4)
             else:
                 ttk.Button(row, text="重命名", width=8,
                            command=lambda k=key: self._rename_category(k)).pack(
@@ -280,29 +284,37 @@ class DailyExpensePage:
                            command=lambda k=key: self._delete_category(k)).pack(
                     side="left", padx=4)
 
-    def _rename_category(self, old_key):
-        """重命名一个自定义类别，并同步更新已录入的支出明细。"""
+    def _rename_category(self, key):
+        """重命名一个费用类别（内置/自定义均可），并同步更新已录入的支出明细。
+
+        内置类别只改显示名（key 不变）；自定义类别名称即 key，会迁移名下明细。
+        """
+        old_label = self._key_to_label.get(key, key)
         new = simpledialog.askstring(
-            "重命名费用类别", f"将「{old_key}」改为：", parent=self.frame)
+            "重命名费用类别", f"将「{old_label}」改为：",
+            initialvalue=old_label, parent=self.frame)
         if not new or not new.strip():
             return
         try:
-            new_key = settings.rename_expense_category(old_key, new)
+            new_key = settings.rename_expense_category(key, new)
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("无法改名", str(e), parent=self.frame)
             return
         self._reload_categories()
-        if self.vars["category"].get() == old_key:
-            self.vars["category"].set(new_key)
+        new_label = self._key_to_label.get(new_key, new_key)
+        if self.vars["category"].get() == old_label:
+            self.vars["category"].set(new_label)
         self._refresh_category_manager()
-        self.status.config(text=f"已改名：{old_key} → {new_key}", foreground="green")
+        self.status.config(text=f"已改名：{old_label} → {new_label}",
+                           foreground="green")
 
     def _delete_category(self, key):
         """删除一个自定义类别，其名下明细改挂到默认内置类别。"""
+        default_label = self._key_to_label.get(
+            config.EXPENSE_CATEGORIES[0][0], config.EXPENSE_CATEGORIES[0][1])
         if not messagebox.askyesno(
                 "删除费用类别",
-                f"确定删除「{key}」？\n其名下的支出明细将改挂到默认类别「"
-                f"{config.EXPENSE_CATEGORIES[0][1]}」，不会丢失。",
+                f"确定删除「{key}」？\n其名下的支出明细将改挂到默认类别「{default_label}」，不会丢失。",
                 parent=self.frame):
             return
         try:

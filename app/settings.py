@@ -62,13 +62,35 @@ def add_store(name: str) -> bool:
 
 
 # ------------------------------------------------------- 费用类别（支出日报）
+def _category_label_overrides() -> dict:
+    """内置类别显示名覆盖表 {key: label}（用户重命名内置类别后写入）。"""
+    raw = load_settings().get("expense_category_labels") or {}
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for k, v in raw.items():
+        k = str(k).strip()
+        v = str(v).strip()
+        if k and v:
+            out[k] = v
+    return out
+
+
 def get_expense_categories() -> list:
     """费用类别 [(key, label)]：内置科目 + 设置里手工新增的自定义类别。
 
+    内置类别的显示名可被设置里的 expense_category_labels 覆盖
+    （重命名内置类别只改显示名，key 不变，历史数据无需迁移）；
     自定义类别以名称同时作为 key 存入该列（如「加班餐费」）。
     """
-    out = list(config.EXPENSE_CATEGORIES)
-    seen = {k for k, _l in out} | {label for _k, label in out}
+    overrides = _category_label_overrides()
+    out = []
+    seen = set()
+    for key, label in config.EXPENSE_CATEGORIES:
+        lbl = str(overrides.get(key) or label).strip() or label
+        out.append((key, lbl))
+        seen.add(key)
+        seen.add(lbl)
     for name in load_settings().get("expense_categories") or []:
         name = str(name).strip()
         if name and name not in seen:
@@ -85,12 +107,12 @@ def expense_category_keys() -> set:
 def add_expense_category(label: str) -> str:
     """新增自定义费用类别并持久化，返回其 key。
 
-    内置类别直接返回对应 key；自定义类别 key 即名称本身。
+    内置类别（含已改名的）直接返回对应 key；自定义类别 key 即名称本身。
     """
     name = (label or "").strip()
     if not name:
         return ""
-    for key, builtin_label in config.EXPENSE_CATEGORIES:
+    for key, builtin_label in get_expense_categories():
         if name in (key, builtin_label):
             return key
     s = load_settings()
@@ -104,48 +126,77 @@ def add_expense_category(label: str) -> str:
 
 
 def get_custom_expense_categories() -> list:
-    """仅返回用户自定义的类别名称列表（内置类别不可改名/删除）。"""
+    """仅返回用户自定义的类别名称列表（内置类别可改名、不可删除）。"""
     return [str(x).strip() for x in (load_settings().get("expense_categories") or [])
             if str(x).strip()]
 
 
 def is_builtin_expense_category(label: str) -> bool:
-    """判断某类别名是否为内置类别（内置类别只允许选用，不允许改名/删除）。"""
+    """判断某类别名（或 key）是否为内置类别。
+
+    内置类别允许重命名（改的只是显示名，key 不变），但不允许删除。
+    """
     name = (label or "").strip()
-    for _k, builtin_label in config.EXPENSE_CATEGORIES:
-        if name in (builtin_label, _k):
-            return True
+    if not name:
+        return False
+    builtin_keys = {k for k, _l in config.EXPENSE_CATEGORIES}
+    for key, lbl in get_expense_categories():
+        if name in (key, lbl):
+            return key in builtin_keys
     return False
 
 
 def rename_expense_category(old_label: str, new_label: str) -> str:
-    """重命名一个自定义费用类别，并同步更新已录入的支出明细。
+    """重命名一个费用类别（内置或自定义均可），并同步更新已录入的支出明细。
 
-    内置类别不可改名；新名称与已有类别（内置或自定义）重复时报错。
-    返回新的 key（自定义类别 key 即名称本身）。
+    内置类别只改显示名（key 不变，历史明细无需迁移）；
+    自定义类别名称即 key，改名会同步改写设置并迁移名下明细。
+    新名称与已有类别（内置或自定义）重复时报错。
+    返回新的 key（配合 get_expense_categories 可查到新显示名）。
     """
     old = (old_label or "").strip()
     new = (new_label or "").strip()
     if not old or not new:
         raise ValueError("类别名不能为空")
-    if is_builtin_expense_category(old):
-        raise ValueError("内置类别不可改名")
-    if is_builtin_expense_category(new):
-        raise ValueError("该名称与内置类别冲突")
-    customs = get_custom_expense_categories()
-    if old not in customs:
-        raise ValueError("待改名的类别不存在")
-    others = [c for c in customs if c != old]
-    if new in others:
-        raise ValueError("已存在同名类别")
 
+    pairs = get_expense_categories()
+    old_key = None
+    for key, lbl in pairs:
+        if old in (key, lbl):
+            old_key = key
+            break
+    if old_key is None:
+        raise ValueError("待改名的类别不存在")
+    if new == old:
+        return old_key
+
+    # 新名称不得与其他类别的 key / 显示名冲突（自身除外）
+    for key, lbl in pairs:
+        if key == old_key:
+            continue
+        if new in (key, lbl):
+            raise ValueError("已存在同名类别")
+
+    if is_builtin_expense_category(old_key):
+        # 内置：仅覆盖显示名，key 不变
+        s = load_settings()
+        overrides = dict(_category_label_overrides())
+        overrides[old_key] = new
+        s["expense_category_labels"] = overrides
+        save_settings(s)
+        return old_key
+
+    # 自定义：key 即名称，需改名并迁移名下明细
+    customs = get_custom_expense_categories()
+    if old_key not in customs:
+        raise ValueError("待改名的类别不存在")
     s = load_settings()
-    s["expense_categories"] = [new if c == old else c for c in customs]
+    s["expense_categories"] = [new if c == old_key else c for c in customs]
     save_settings(s)
 
     # 同步更新已录入明细里引用该类别的记录（category 存的是 key=名称）
     from app.db import database
-    database.reassign_expense_category(old, new)
+    database.reassign_expense_category(old_key, new)
     return new
 
 

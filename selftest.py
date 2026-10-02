@@ -691,6 +691,57 @@ def main():
           and (rep2.get("sources") or {}).get("expense_rows") == 2,
           f"got={rep2.get('sources')}")
 
+    print("== 6h2b. 费用类别重命名（含内置类别） ==")
+    from app import settings as _cats
+
+    def _raises(fn, *args):
+        try:
+            fn(*args)
+            return False
+        except ValueError:
+            return True
+
+    # 内置类别：只改显示名，key 不变（历史明细无需迁移）
+    new_key = _cats.rename_expense_category("工资", "员工薪资")
+    check("内置类别改名返回原 key", new_key == "salary", f"got={new_key}")
+    check("内置类别显示名已更新",
+          dict(_cats.get_expense_categories()).get("salary") == "员工薪资")
+    check("内置类别改名后仍判定为内置",
+          _cats.is_builtin_expense_category("员工薪资"))
+    check("内置类别不可删除", _raises(_cats.delete_expense_category, "员工薪资"))
+    check("手输新显示名可解析回内置 key",
+          _cats.add_expense_category("员工薪资") == "salary")
+
+    # 自定义类别：名称即 key，改名同步迁移名下明细
+    ckey = _cats.add_expense_category("加班餐费")
+    database.save_daily_expense_item({
+        "date": "2026-09-02", "store": "A店", "summary": "夜宵",
+        "category": ckey, "method": config.PAY_METHOD_CASH,
+        "currency": "USD", "amount": 30, "notes": ""})
+    moved_key = _cats.rename_expense_category("加班餐费", "夜班餐补")
+    check("自定义类别改名返回新 key", moved_key == "夜班餐补", f"got={moved_key}")
+    check("自定义类别名下明细已迁移",
+          all(r["category"] == "夜班餐补"
+              for r in database.list_daily_expense_items()
+              if r["summary"] == "夜宵"))
+    check("新名称与内置显示名冲突时报错",
+          _raises(_cats.rename_expense_category, "夜班餐补", "员工薪资"))
+    check("待改名的类别不存在时报错",
+          _raises(_cats.rename_expense_category, "不存在的类别", "任意"))
+    _cats.delete_expense_category("夜班餐补")
+    # 清理测试遗留的支出明细本身（删除类别只是改挂，明细仍在）
+    for r in database.list_daily_expense_items():
+        if r["summary"] == "夜宵":
+            database.delete_daily_expense_item(r["id"])
+    check("自定义类别可删除且明细改挂默认类别",
+          not any(r["summary"] == "夜宵" and r["category"] == "夜班餐补"
+                  for r in database.list_daily_expense_items()))
+
+    # 恢复内置显示名，避免影响后续用例
+    _cats.rename_expense_category("salary", "工资")
+    check("内置类别可改回原名",
+          dict(_cats.get_expense_categories()).get("salary") == "工资")
+
     print("== 6h3. 兑换单 → 财务报表（模块关联）==")
     from app.accounting import fx as fx_mod
     st = settings_mod.load_settings()
