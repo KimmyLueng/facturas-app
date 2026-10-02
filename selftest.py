@@ -691,6 +691,23 @@ def main():
           and (rep2.get("sources") or {}).get("expense_rows") == 2,
           f"got={rep2.get('sources')}")
 
+    print("== 6h2a. 收支概览（日 / 月合计） ==")
+    import datetime as _dt
+    ov = reports.income_expense_overview(_dt.date(2026, 9, 1))
+    check("收支概览：当日收入 400 / 支出 260 / 净额 140",
+          ov["day"]["income_amount"] == 400
+          and ov["day"]["expense_amount"] == 260
+          and ov["day"]["net"] == 140
+          and ov["day"]["income_count"] == 2
+          and ov["day"]["expense_count"] == 2,
+          f"got={ov}")
+    check("收支概览：当月与当日一致（同月数据）",
+          ov["month"]["income_amount"] == 400
+          and ov["month"]["expense_amount"] == 260,
+          f"got={ov}")
+    check("收支概览：月份标签", ov["month_label"] == "2026-09",
+          f"got={ov.get('month_label')}")
+
     print("== 6h2b. 费用类别重命名（含内置类别） ==")
     from app import settings as _cats
 

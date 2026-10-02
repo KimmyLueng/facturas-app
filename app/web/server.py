@@ -408,6 +408,7 @@ def reports():
     dto = parse_date(to) if to else None
     capital = float(settings_mod.load_settings().get("capital_inicial", 0) or 0)
     rows, error, trial, src = [], None, None, None
+    overview = None
     try:
         # get_report 返回 (报表 dict, 未换算单据 list)
         res = reports_mod.get_report(rtype, dfrom, dto, capital,
@@ -420,9 +421,14 @@ def reports():
             rows = _report_rows(data or {})
     except Exception as e:  # noqa: BLE001
         error = str(e)
+    try:
+        overview = reports_mod.income_expense_overview()
+    except Exception:  # noqa: BLE001  概览失败不影响报表查询
+        overview = None
     return render_template("reports.html", active="reports", rtype=rtype,
                            rows=rows, error=error, frm=frm, to=to, trial=trial,
-                           sources=src, rate_kind=rate_kind)
+                           sources=src, rate_kind=rate_kind,
+                           overview=overview)
 
 
 # ------------------------------------------------------------------ 设置

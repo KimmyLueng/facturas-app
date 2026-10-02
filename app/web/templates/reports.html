@@ -27,6 +27,29 @@
 <div class="alert err">{{ error }}</div>
 {% endif %}
 
+{% if overview %}
+<div class="card">
+  <h3>收支概览 <span class="muted">（店铺收入 / 支出日报 · 原币口径）</span></h3>
+  <div class="table-wrap">
+  <table>
+    <tr><th>范围</th><th class="num">收入</th><th class="num">支出</th><th class="num">净额</th></tr>
+    <tr>
+      <td>今日（{{ overview.day_date }}）</td>
+      <td class="num">{{ overview.day.income_amount | num }}（{{ overview.day.income_count }} 笔）</td>
+      <td class="num">{{ overview.day.expense_amount | num }}（{{ overview.day.expense_count }} 笔）</td>
+      <td class="num">{{ overview.day.net | num }}</td>
+    </tr>
+    <tr>
+      <td>本月（{{ overview.month_label }}）</td>
+      <td class="num">{{ overview.month.income_amount | num }}（{{ overview.month.income_count }} 笔）</td>
+      <td class="num">{{ overview.month.expense_amount | num }}（{{ overview.month.expense_count }} 笔）</td>
+      <td class="num">{{ overview.month.net | num }}</td>
+    </tr>
+  </table>
+  </div>
+</div>
+{% endif %}
+
 {% if sources %}
 <p class="muted">
   数据来源：单据 {{ sources.get('docs', 0) }} 张 ·

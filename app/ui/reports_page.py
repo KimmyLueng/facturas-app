@@ -61,6 +61,22 @@ class ReportsPage:
                                   state="disabled")
         self.pdf_btn.pack(side="left")
 
+        # ---------------------------------------------------- 收支概览
+        ov = ttk.LabelFrame(
+            f, text="收支概览（店铺收入 / 支出日报 · 原币口径，与报表数据同源）")
+        ov.pack(fill="x", **pad)
+        ov_row = ttk.Frame(ov)
+        ov_row.pack(fill="x", padx=10, pady=6)
+        self.ov_day_var = tk.StringVar(value="今日：—")
+        self.ov_month_var = tk.StringVar(value="本月：—")
+        ttk.Label(ov_row, textvariable=self.ov_day_var,
+                  font=("Microsoft YaHei UI", 10, "bold")).pack(
+            side="left", padx=(0, 24))
+        ttk.Label(ov_row, textvariable=self.ov_month_var,
+                  font=("Microsoft YaHei UI", 10, "bold")).pack(side="left")
+        ttk.Button(ov_row, text="刷新概览",
+                   command=self._refresh_overview).pack(side="right")
+
         # 摘要
         self.summary_var = tk.StringVar(value="")
         ttk.Label(f, textvariable=self.summary_var, foreground="#1f6feb",
@@ -78,6 +94,29 @@ class ReportsPage:
             value="期初来源：—（生成报表后显示，取自科目表期初余额）")
         ttk.Label(f, textvariable=self.src_var,
                   foreground="gray").pack(fill="x", padx=14, pady=(0, 10))
+
+        self._refresh_overview()
+
+    # ------------------------------------------------------------ 收支概览
+    def _refresh_overview(self):
+        """刷新收支概览：今日 / 本月的收入、支出合计与净额（原币口径）。"""
+        try:
+            from app.accounting import income_expense_overview
+            ov = income_expense_overview()
+        except Exception:  # noqa: BLE001  统计失败不影响报表页
+            self.ov_day_var.set("今日：—")
+            self.ov_month_var.set("本月：—")
+            return
+        d, m = ov["day"], ov["month"]
+
+        def _line(label, span, s):
+            return (f"{label}（{span}）："
+                    f"收入 {self._fmt(s['income_amount'])}（{s['income_count']} 笔） · "
+                    f"支出 {self._fmt(s['expense_amount'])}（{s['expense_count']} 笔） · "
+                    f"净额 {self._fmt(s['net'])}")
+
+        self.ov_day_var.set(_line("今日", ov["day_date"], d))
+        self.ov_month_var.set(_line("本月", ov["month_label"], m))
 
     # ------------------------------------------------------------ 生成
     def _parse_range(self):
