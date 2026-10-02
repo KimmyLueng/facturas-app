@@ -707,6 +707,20 @@ def main():
           f"got={ov}")
     check("收支概览：月份标签", ov["month_label"] == "2026-09",
           f"got={ov.get('month_label')}")
+    check("收支概览：昨日 / 上月无数据则为 0",
+          ov["yesterday"]["income_amount"] == 0
+          and ov["yesterday"]["expense_amount"] == 0
+          and ov["last_month"]["income_amount"] == 0
+          and ov["last_month"]["expense_amount"] == 0,
+          f"got={ov}")
+    st2 = reports.income_expense_stats(_dt.date(2026, 9, 1), _dt.date(2026, 9, 30))
+    check("收支概览：自定义区间统计（收入 400 / 支出 260 / 净额 140）",
+          st2["income_amount"] == 400 and st2["expense_amount"] == 260
+          and st2["net"] == 140, f"got={st2}")
+    st3 = reports.income_expense_stats(_dt.date(2026, 9, 2), _dt.date(2026, 9, 30))
+    check("收支概览：区间不含数据日则为 0",
+          st3["income_amount"] == 0 and st3["expense_amount"] == 0,
+          f"got={st3}")
 
     print("== 6h2b. 费用类别重命名（含内置类别） ==")
     from app import settings as _cats

@@ -425,6 +425,12 @@ def reports():
         overview = reports_mod.income_expense_overview()
     except Exception:  # noqa: BLE001  概览失败不影响报表查询
         overview = None
+    if overview is not None and dfrom and dto:
+        try:  # 自定义区间：跟随报表查询的起止日期
+            overview["custom"] = reports_mod.income_expense_stats(dfrom, dto)
+            overview["custom_range"] = f"{dfrom.isoformat()} ~ {dto.isoformat()}"
+        except Exception:  # noqa: BLE001
+            pass
     return render_template("reports.html", active="reports", rtype=rtype,
                            rows=rows, error=error, frm=frm, to=to, trial=trial,
                            sources=src, rate_kind=rate_kind,

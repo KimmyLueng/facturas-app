@@ -66,16 +66,28 @@ class ReportsPage:
             f, text="收支概览（店铺收入 / 支出日报 · 原币口径，与报表数据同源）")
         ov.pack(fill="x", **pad)
         ov_row = ttk.Frame(ov)
-        ov_row.pack(fill="x", padx=10, pady=6)
-        self.ov_day_var = tk.StringVar(value="今日：—")
-        self.ov_month_var = tk.StringVar(value="本月：—")
-        ttk.Label(ov_row, textvariable=self.ov_day_var,
+        ov_row.pack(fill="x", padx=10, pady=4)
+        self.ov_mode = tk.StringVar(value="today")
+        for value, text in (("today", "今天"), ("yesterday", "昨天"),
+                            ("month", "本月"), ("last_month", "上月"),
+                            ("custom", "自定义")):
+            ttk.Radiobutton(ov_row, text=text, value=value,
+                            variable=self.ov_mode,
+                            command=self._refresh_overview).pack(
+                side="left", padx=4)
+        ttk.Label(ov_row, text="从：").pack(side="left", padx=(14, 2))
+        self.ov_from_var = tk.StringVar(
+            value=today.strftime("%Y-%m-%d"))
+        ttk.Entry(ov_row, textvariable=self.ov_from_var, width=11).pack(side="left")
+        ttk.Label(ov_row, text="至：").pack(side="left", padx=(6, 2))
+        self.ov_to_var = tk.StringVar(value=today.strftime("%Y-%m-%d"))
+        ttk.Entry(ov_row, textvariable=self.ov_to_var, width=11).pack(side="left")
+        ttk.Button(ov_row, text="查询",
+                   command=self._ov_query).pack(side="left", padx=8)
+        self.ov_stat_var = tk.StringVar(value="收支概览：—")
+        ttk.Label(ov, textvariable=self.ov_stat_var,
                   font=("Microsoft YaHei UI", 10, "bold")).pack(
-            side="left", padx=(0, 24))
-        ttk.Label(ov_row, textvariable=self.ov_month_var,
-                  font=("Microsoft YaHei UI", 10, "bold")).pack(side="left")
-        ttk.Button(ov_row, text="刷新概览",
-                   command=self._refresh_overview).pack(side="right")
+            anchor="w", padx=10, pady=(0, 6))
 
         # 摘要
         self.summary_var = tk.StringVar(value="")
@@ -98,25 +110,61 @@ class ReportsPage:
         self._refresh_overview()
 
     # ------------------------------------------------------------ 收支概览
-    def _refresh_overview(self):
-        """刷新收支概览：今日 / 本月的收入、支出合计与净额（原币口径）。"""
+    @staticmethod
+    def _parse_ov_date(var):
+        """解析概览自定义日期（支持 YYYY-MM-DD 与常用分隔格式）。"""
+        s = (var.get() or "").strip()
+        if not s:
+            return None
         try:
-            from app.accounting import income_expense_overview
-            ov = income_expense_overview()
-        except Exception:  # noqa: BLE001  统计失败不影响报表页
-            self.ov_day_var.set("今日：—")
-            self.ov_month_var.set("本月：—")
-            return
-        d, m = ov["day"], ov["month"]
+            return datetime.date.fromisoformat(s)
+        except ValueError:
+            try:
+                from app.utils import parse_date
+                return parse_date(s)
+            except Exception:  # noqa: BLE001
+                return None
 
-        def _line(label, span, s):
-            return (f"{label}（{span}）："
-                    f"收入 {self._fmt(s['income_amount'])}（{s['income_count']} 笔） · "
-                    f"支出 {self._fmt(s['expense_amount'])}（{s['expense_count']} 笔） · "
-                    f"净额 {self._fmt(s['net'])}")
+    def _ov_query(self):
+        """自定义区间查询。"""
+        self.ov_mode.set("custom")
+        self._refresh_overview()
 
-        self.ov_day_var.set(_line("今日", ov["day_date"], d))
-        self.ov_month_var.set(_line("本月", ov["month_label"], m))
+    def _refresh_overview(self):
+        """按所选维度（今天/昨天/本月/上月/自定义）统计收入 / 支出合计。"""
+        mode = self.ov_mode.get()
+        today = datetime.date.today()
+        f = t = None
+        try:
+            if mode == "today":
+                f = t = today
+            elif mode == "yesterday":
+                f = t = today - datetime.timedelta(days=1)
+            elif mode == "month":
+                f = today.replace(day=1)
+                t = ((f + datetime.timedelta(days=32)).replace(day=1)
+                     - datetime.timedelta(days=1))
+            elif mode == "last_month":
+                t = today.replace(day=1) - datetime.timedelta(days=1)
+                f = t.replace(day=1)
+            else:  # custom
+                f = self._parse_ov_date(self.ov_from_var)
+                t = self._parse_ov_date(self.ov_to_var)
+                if f is None or t is None:
+                    self.ov_stat_var.set(
+                        "自定义区间：请输入有效日期（YYYY-MM-DD 或 DD/MM/YYYY）")
+                    return
+                if f > t:
+                    f, t = t, f
+            from app.accounting import income_expense_stats
+            s = income_expense_stats(f, t)
+            self.ov_stat_var.set(
+                f"统计区间（{f.isoformat()} ~ {t.isoformat()}）："
+                f"收入 {self._fmt(s['income_amount'])}（{s['income_count']} 笔） · "
+                f"支出 {self._fmt(s['expense_amount'])}（{s['expense_count']} 笔） · "
+                f"净额 {self._fmt(s['net'])}")
+        except Exception as e:  # noqa: BLE001  统计失败不影响报表页
+            self.ov_stat_var.set(f"收支概览统计失败：{e}")
 
     # ------------------------------------------------------------ 生成
     def _parse_range(self):

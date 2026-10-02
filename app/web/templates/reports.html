@@ -32,12 +32,18 @@
   <h3>收支概览 <span class="muted">（店铺收入 / 支出日报 · 原币口径）</span></h3>
   <div class="table-wrap">
   <table>
-    <tr><th>范围</th><th class="num">收入</th><th class="num">支出</th><th class="num">净额</th></tr>
+    <tr><th>维度</th><th class="num">收入</th><th class="num">支出</th><th class="num">净额</th></tr>
     <tr>
-      <td>今日（{{ overview.day_date }}）</td>
+      <td>今天（{{ overview.day_date }}）</td>
       <td class="num">{{ overview.day.income_amount | num }}（{{ overview.day.income_count }} 笔）</td>
       <td class="num">{{ overview.day.expense_amount | num }}（{{ overview.day.expense_count }} 笔）</td>
       <td class="num">{{ overview.day.net | num }}</td>
+    </tr>
+    <tr>
+      <td>昨天（{{ overview.yesterday_date }}）</td>
+      <td class="num">{{ overview.yesterday.income_amount | num }}（{{ overview.yesterday.income_count }} 笔）</td>
+      <td class="num">{{ overview.yesterday.expense_amount | num }}（{{ overview.yesterday.expense_count }} 笔）</td>
+      <td class="num">{{ overview.yesterday.net | num }}</td>
     </tr>
     <tr>
       <td>本月（{{ overview.month_label }}）</td>
@@ -45,6 +51,20 @@
       <td class="num">{{ overview.month.expense_amount | num }}（{{ overview.month.expense_count }} 笔）</td>
       <td class="num">{{ overview.month.net | num }}</td>
     </tr>
+    <tr>
+      <td>上月（{{ overview.last_month_label }}）</td>
+      <td class="num">{{ overview.last_month.income_amount | num }}（{{ overview.last_month.income_count }} 笔）</td>
+      <td class="num">{{ overview.last_month.expense_amount | num }}（{{ overview.last_month.expense_count }} 笔）</td>
+      <td class="num">{{ overview.last_month.net | num }}</td>
+    </tr>
+    {% if overview.get('custom') %}
+    <tr>
+      <td>自定义（{{ overview.custom_range }}）</td>
+      <td class="num">{{ overview.custom.income_amount | num }}（{{ overview.custom.income_count }} 笔）</td>
+      <td class="num">{{ overview.custom.expense_amount | num }}（{{ overview.custom.expense_count }} 笔）</td>
+      <td class="num">{{ overview.custom.net | num }}</td>
+    </tr>
+    {% endif %}
   </table>
   </div>
 </div>

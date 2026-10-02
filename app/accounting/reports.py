@@ -668,13 +668,35 @@ def daily_book_entries(date_from=None, date_to=None, settings: dict = None):
     return entries, stats, unconverted
 
 
+def income_expense_stats(date_from=None, date_to=None) -> dict:
+    """区间收入 / 支出统计（店铺收入日报 + 支出日报，原币口径）。
+
+    返回 income_count / income_amount / expense_count / expense_amount / net，
+    净额 = 收入 - 支出。与财务报表「数据来源」统计口径一致。
+    """
+    try:
+        _e, stats, _u = daily_book_entries(date_from, date_to)
+    except Exception:  # noqa: BLE001  旧库缺表时兜底
+        stats = {"income_count": 0, "income_amount": 0.0,
+                 "expense_count": 0, "expense_amount": 0.0}
+    income = float(stats.get("income_amount") or 0)
+    expense = float(stats.get("expense_amount") or 0)
+    return {
+        "income_count": stats.get("income_count", 0),
+        "income_amount": round(income, 2),
+        "expense_count": stats.get("expense_count", 0),
+        "expense_amount": round(expense, 2),
+        "net": round(income - expense, 2),
+    }
+
+
 def income_expense_overview(day=None) -> dict:
-    """收支概览：某一天与所在月份的收入 / 支出合计（原币口径）。
+    """收支概览：今天 / 昨天 / 本月 / 上月 的收入 / 支出合计（原币口径）。
 
     数据与财务报表同源（店铺收入日报 / 店铺支出日报），
     金额按原币直加，与报表「数据来源」统计口径一致。
-    返回 {"day_date", "month_label", "day": {...}, "month": {...}}，
-    每项含 income_count / income_amount / expense_count / expense_amount / net。
+    返回各维度日期标签与统计（每项含 income_count / income_amount /
+    expense_count / expense_amount / net）。
     """
     d = day or datetime.date.today()
     if not isinstance(d, datetime.date):
@@ -682,28 +704,19 @@ def income_expense_overview(day=None) -> dict:
     month_from = d.replace(day=1)
     next_month = (month_from + datetime.timedelta(days=32)).replace(day=1)
     month_to = next_month - datetime.timedelta(days=1)
-
-    def _range(f, t):
-        try:
-            _e, stats, _u = daily_book_entries(f, t)
-        except Exception:  # noqa: BLE001  旧库缺表时兜底
-            stats = {"income_count": 0, "income_amount": 0.0,
-                     "expense_count": 0, "expense_amount": 0.0}
-        income = float(stats.get("income_amount") or 0)
-        expense = float(stats.get("expense_amount") or 0)
-        return {
-            "income_count": stats.get("income_count", 0),
-            "income_amount": round(income, 2),
-            "expense_count": stats.get("expense_count", 0),
-            "expense_amount": round(expense, 2),
-            "net": round(income - expense, 2),
-        }
+    prev_month_last = month_from - datetime.timedelta(days=1)
+    prev_month_from = prev_month_last.replace(day=1)
+    yesterday = d - datetime.timedelta(days=1)
 
     return {
         "day_date": d.isoformat(),
+        "yesterday_date": yesterday.isoformat(),
         "month_label": f"{d.year}-{d.month:02d}",
-        "day": _range(d, d),
-        "month": _range(month_from, month_to),
+        "last_month_label": f"{prev_month_from.year}-{prev_month_from.month:02d}",
+        "day": income_expense_stats(d, d),
+        "yesterday": income_expense_stats(yesterday, yesterday),
+        "month": income_expense_stats(month_from, month_to),
+        "last_month": income_expense_stats(prev_month_from, prev_month_last),
     }
 
 
