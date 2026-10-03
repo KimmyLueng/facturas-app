@@ -42,11 +42,18 @@ class DailyIncomePage:
     def build(self):
         f = self.frame
         f.columnconfigure(0, weight=1)
-        f.rowconfigure(0, weight=1)
+        f.rowconfigure(1, weight=1)
+
+        # -------------------------------------------------------- 收入统计
+        from app.ui.stats_panel import PeriodStatsPanel
+        self.stats = PeriodStatsPanel(
+            f, "收入统计（今天 / 昨天 / 本月 / 上月 / 自定义 · 原币口径）",
+            self._fetch_stat_rows)
+        self.stats.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
 
         # -------------------------------------------------------- 列表
         list_frame = ttk.LabelFrame(f, text="店铺收入统计（明细）", padding=10)
-        list_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
+        list_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
         list_frame.rowconfigure(0, weight=1)
         list_frame.columnconfigure(0, weight=1)
 
@@ -73,7 +80,7 @@ class DailyIncomePage:
         # -------------------------------------------------------- 编辑表单
         form = ttk.LabelFrame(
             f, text="录入 / 编辑（同一天可录入多笔不同币种 / 支付方式）", padding=10)
-        form.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
+        form.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
 
         ttk.Label(form, text="日期").grid(row=0, column=0, sticky="w", pady=3)
         self.vars["date"] = tk.StringVar(value=date_iso(datetime.date.today()))
@@ -129,14 +136,6 @@ class DailyIncomePage:
 
         self._reload_stores()
         self._sync_currencies()
-
-        # -------------------------------------------------------- 收入统计
-        from app.ui.stats_panel import PeriodStatsPanel
-        self.stats = PeriodStatsPanel(
-            f, "收入统计（今天 / 昨天 / 本月 / 上月 / 自定义 · 原币口径）",
-            self._fetch_stat_rows)
-        self.stats.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
-
         self.refresh()
 
     # ------------------------------------------------------------ 统计

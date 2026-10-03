@@ -130,11 +130,18 @@ class DailyExpensePage:
     def build(self):
         f = self.frame
         f.columnconfigure(0, weight=1)
-        f.rowconfigure(0, weight=1)
+        f.rowconfigure(1, weight=1)
+
+        # -------------------------------------------------------- 支出统计
+        from app.ui.stats_panel import PeriodStatsPanel
+        self.stats = PeriodStatsPanel(
+            f, "支出统计（今天 / 昨天 / 本月 / 上月 / 自定义 · 原币口径）",
+            self._fetch_stat_rows)
+        self.stats.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
 
         # -------------------------------------------------------- 列表
         list_frame = ttk.LabelFrame(f, text="店铺支出统计（明细）", padding=10)
-        list_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
+        list_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
         list_frame.rowconfigure(0, weight=1)
         list_frame.columnconfigure(0, weight=1)
 
@@ -163,22 +170,12 @@ class DailyExpensePage:
         # -------------------------------------------------------- 编辑表单
         form = ttk.LabelFrame(
             f, text="录入 / 编辑（同一天可录入多笔不同币种 / 付款方式）", padding=10)
-        form.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
+        form.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
 
         # -------------------------------------------------------- 类别管理
         self.cat_mgr = ttk.LabelFrame(
             f, text="费用类别管理（全部类别均可重命名；自定义类别可删除）", padding=10)
-        self.cat_mgr.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
-        self.cat_list = ttk.Frame(self.cat_mgr)
-        self.cat_list.pack(fill="x")
-        self._refresh_category_manager()
-
-        # -------------------------------------------------------- 支出统计
-        from app.ui.stats_panel import PeriodStatsPanel
-        self.stats = PeriodStatsPanel(
-            f, "支出统计（今天 / 昨天 / 本月 / 上月 / 自定义 · 原币口径）",
-            self._fetch_stat_rows)
-        self.stats.grid(row=3, column=0, sticky="ew", padx=10, pady=(5, 10))
+        self.cat_mgr.grid(row=3, column=0, sticky="ew", padx=10, pady=(5, 10))
 
         ttk.Label(form, text="日期").grid(row=0, column=0, sticky="w", pady=3)
         self.vars["date"] = tk.StringVar(value=date_iso(datetime.date.today()))
