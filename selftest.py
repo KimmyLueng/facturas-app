@@ -196,17 +196,15 @@ def main():
         check("已保存 2 张单据", len(docs) == 2)
         check("有业务数据后 has_local_data=True", sync_manager.has_local_data())
 
-        # 支付方式：保存/读回 + 旧库缺列迁移兜底
-        c1["payment_method"] = config.DOC_PAYMENT_TRANSFER
-        v1["payment_method"] = config.PAY_METHOD_CASH
-        database.save_document(c1)
-        database.save_document(v1)
-        docs = database.list_documents()
+        # 支付方式：保存/读回（独立临时单据，验证后立即删除，不污染后续断言）
+        pm_id = database.save_document({
+            "direction": "venta", "partner": "PM测试", "date": "2026-09-03",
+            "total": 0, "payment_method": config.DOC_PAYMENT_TRANSFER,
+            "items": []})
         check("单据支付方式保存并读回",
-              any(d.get("payment_method") == config.DOC_PAYMENT_TRANSFER
-                  for d in docs)
-              and any(d.get("payment_method") == config.PAY_METHOD_CASH
-                      for d in docs))
+              database.get_document(pm_id).get("payment_method")
+              == config.DOC_PAYMENT_TRANSFER)
+        database.delete_document(pm_id)
 
         # 分店字段保存/读回 + 按分店筛选
         check("分店保存并读回",
