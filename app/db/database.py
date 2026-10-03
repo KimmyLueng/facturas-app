@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS documents (
     total REAL DEFAULT 0,
     currency TEXT DEFAULT '',            -- 单据币种 EUR/USD/Bs
     exchange_rate REAL DEFAULT 0,        -- 单据自带汇率（1 USD = X 本国货币）
+    payment_method TEXT DEFAULT '',      -- 支付方式（现金/银行卡/电子支付/转账/赊账）
     cost_total REAL DEFAULT 0,           -- 结转的销售成本
     raw_text TEXT DEFAULT '',
     source_file TEXT DEFAULT '',
@@ -375,6 +376,8 @@ def _migrate(conn):
         conn.execute("ALTER TABLE documents ADD COLUMN exchange_rate REAL DEFAULT 0")
     if "store" not in doc_cols:
         conn.execute("ALTER TABLE documents ADD COLUMN store TEXT DEFAULT ''")
+    if "payment_method" not in doc_cols:
+        conn.execute("ALTER TABLE documents ADD COLUMN payment_method TEXT DEFAULT ''")
     if "reviewed" not in doc_cols:
         conn.execute("ALTER TABLE documents ADD COLUMN reviewed INTEGER DEFAULT 0")
         # 存量单据在录入时已联动库存，视为已审核，避免与历史库存重复记账
@@ -674,8 +677,9 @@ def save_document(doc: dict) -> int:
             """INSERT INTO documents
                (doc_type, direction, doc_number, date, partner_id, partner_name,
                 tax_id, base, iva_rate, iva_amount, total,
-                currency, exchange_rate, cost_total, raw_text, source_file, store)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                currency, exchange_rate, cost_total, raw_text, source_file, store,
+                payment_method)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (doc.get("doc_type", "FACTURA"), direction,
              doc.get("doc_number", ""), date_iso, pid,
              doc.get("partner", ""), doc.get("tax_id", ""),
@@ -685,7 +689,7 @@ def save_document(doc: dict) -> int:
              doc.get("exchange_rate", 0.0),
              doc.get("cost_total", 0.0),
              doc.get("raw_text", ""), doc.get("source_file", ""),
-             doc.get("store", "")))
+             doc.get("store", ""), doc.get("payment_method", "")))
         doc_id = cur.lastrowid
 
         for it in doc.get("items", []) or []:

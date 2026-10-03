@@ -100,7 +100,7 @@ class ScanPage:
             e.grid(row=r, column=1, sticky="we", padx=8, pady=3)
             self.vars[key] = v
 
-        # 币种 + 单据汇率行
+        # 币种 + 支付方式 + 单据汇率行
         r = len(labels) + len(money_keys)
         ttk.Label(form, text="Moneda / 币种").grid(row=r, column=0, sticky="w", pady=3)
         self.vars["currency"] = tk.StringVar()
@@ -109,7 +109,15 @@ class ScanPage:
                                          for c in ("USD", "Bs", "CNY", "USDT")])
         cb.grid(row=r, column=1, sticky="we", padx=8, pady=3)
 
-        r2 = r + 1
+        # 支付方式：现金 / 银行卡 / 电子支付 / 转账 / 赊账（可留空）
+        rp = r + 1
+        ttk.Label(form, text="支付方式").grid(row=rp, column=0, sticky="w", pady=3)
+        self.vars["payment_method"] = tk.StringVar()
+        pm_cb = ttk.Combobox(form, textvariable=self.vars["payment_method"], width=16,
+                             values=[""] + list(config.DOC_PAYMENT_METHODS))
+        pm_cb.grid(row=rp, column=1, sticky="we", padx=8, pady=3)
+
+        r2 = rp + 1
         ttk.Label(form, text="Tipo de Cambio BCV\n汇率（1 USD = X Bs）").grid(
             row=r2, column=0, sticky="w", pady=3)
         self.vars["exchange_rate"] = tk.StringVar()
@@ -578,6 +586,7 @@ class ScanPage:
             "total": parse_amount(self.vars["total"].get()),
             "currency": config.currency_code(self.vars["currency"].get()),
             "exchange_rate": parse_amount(self.vars["exchange_rate"].get()),
+            "payment_method": self.vars["payment_method"].get().strip(),
             "store": self.vars["store"].get().strip(),
             "items": self.items,
             "raw_text": self.raw_text.get("1.0", "end").strip(),

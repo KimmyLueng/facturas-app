@@ -28,6 +28,12 @@
       </select>
     </label>
     <label>单据汇率<input name="exchange_rate" inputmode="decimal" placeholder="0"></label>
+    <label>支付方式
+      <select name="payment_method">
+        <option value=""></option>
+        {% for m in payment_methods %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+      </select>
+    </label>
     <label>税率 %<input name="iva_rate" inputmode="decimal" placeholder="16"></label>
     <label>总额<input name="total" inputmode="decimal" placeholder="0.00" required></label>
   </div>
@@ -37,7 +43,7 @@
 <h3>单据列表</h3>
 <div class="table-wrap">
 <table>
-  <tr><th>日期</th><th>单号</th><th>方向</th><th>往来单位</th><th>币种</th><th class="num">金额</th><th></th></tr>
+  <tr><th>日期</th><th>单号</th><th>方向</th><th>往来单位</th><th>币种</th><th>支付方式</th><th class="num">金额</th><th></th></tr>
   {% for d in docs %}
   <tr>
     <td>{{ d.date or '' }}</td>
@@ -45,6 +51,7 @@
     <td>{{ '进货' if d.direction == 'compra' else '销售' }}</td>
     <td>{{ d.partner_name or '' }}</td>
     <td>{{ d.currency | cur }}</td>
+    <td>{{ d.payment_method or '' }}</td>
     <td class="num">{{ d.total | num }}</td>
     <td>
       <form method="post" action="{{ url_for('documents_delete', doc_id=d.id) }}"
@@ -54,7 +61,7 @@
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="7" class="empty">暂无单据</td></tr>
+  <tr><td colspan="8" class="empty">暂无单据</td></tr>
   {% endfor %}
 </table>
 </div>

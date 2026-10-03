@@ -52,14 +52,15 @@ class DocumentsPage:
                         command=self.refresh).pack(side="left", padx=12)
 
         cols = ("id", "reviewed", "direction", "doc_number", "date", "store",
-                "partner", "currency", "base", "iva", "total")
+                "partner", "currency", "payment", "base", "iva", "total")
         heads = {"id": "ID", "reviewed": "状态", "direction": "方向",
                  "doc_number": "单据号", "date": "日期", "store": "分店",
-                 "partner": "供应商/客户", "currency": "币种", "base": "Base",
+                 "partner": "供应商/客户", "currency": "币种",
+                 "payment": "支付方式", "base": "Base",
                  "iva": "IVA", "total": "Total"}
         widths = {"id": 50, "reviewed": 70, "direction": 60, "doc_number": 110,
                   "date": 90, "store": 70, "partner": 180, "currency": 110,
-                  "base": 100, "iva": 90, "total": 110}
+                  "payment": 90, "base": 100, "iva": 90, "total": 110}
         self.tree = ttk.Treeview(f, columns=cols, show="headings")
         for c in cols:
             self.tree.heading(c, text=heads[c])
@@ -115,6 +116,7 @@ class DocumentsPage:
                 d["doc_number"] or "-", d["date"] or "-",
                 d.get("store") or "-", d["partner_name"] or "-",
                 config.currency_label(d.get("currency")) or d.get("currency") or "-",
+                d.get("payment_method") or "-",
                 format_amount(d["base"], symbols=False),
                 format_amount(d["iva_amount"], symbols=False),
                 format_amount(d["total"], symbols=False)),

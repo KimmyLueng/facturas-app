@@ -325,6 +325,7 @@ def documents():
                 "total": total,
                 "currency": request.form.get("currency", ""),
                 "exchange_rate": parse_amount(request.form.get("exchange_rate")),
+                "payment_method": request.form.get("payment_method", ""),
                 "items": [],
             })
             return _go("documents", "单据已保存")
@@ -334,7 +335,8 @@ def documents():
     return render_template("documents.html", active="documents",
                            docs=docs, today=_today(),
                            stores=settings_mod.get_stores(),
-                           currencies=config.CURRENCY_CODES)
+                           currencies=config.CURRENCY_CODES,
+                           payment_methods=config.DOC_PAYMENT_METHODS)
 
 
 @app.post("/documents/delete/<int:doc_id>")

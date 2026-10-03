@@ -178,6 +178,12 @@ PAY_METHOD_EPAY = "电子支付"
 PAY_METHOD_CASH = "现金"
 PAY_METHODS = [PAY_METHOD_CARD, PAY_METHOD_EPAY, PAY_METHOD_CASH]
 
+# 单据支付方式（扫描导入 / 手工录入单据时选择，对应日常支付方式并扩展转账、赊账）
+DOC_PAYMENT_TRANSFER = "转账"
+DOC_PAYMENT_CREDIT = "赊账"
+DOC_PAYMENT_METHODS = (PAY_METHOD_CASH, PAY_METHOD_CARD, PAY_METHOD_EPAY,
+                       DOC_PAYMENT_TRANSFER, DOC_PAYMENT_CREDIT)
+
 # 日常交易币种（库中一律存代码；界面按 currency_label() 显示「中文名称（简称）」）
 PAY_CURRENCY_BS = "Bs"
 PAY_CURRENCY_VES = PAY_CURRENCY_BS   # 兼容旧写法
