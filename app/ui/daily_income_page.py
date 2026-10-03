@@ -1,4 +1,4 @@
-"""店铺收入日报表。
+"""店铺收入统计。
 
 - 一笔一行：同一天可录入不同币种、不同支付方式的多笔收入。
 - 列表按「明细行」展示；点击某一行即把该笔数据回填到表单，可修改后再保存（再编辑）。
@@ -45,7 +45,7 @@ class DailyIncomePage:
         f.rowconfigure(0, weight=1)
 
         # -------------------------------------------------------- 列表
-        list_frame = ttk.LabelFrame(f, text="店铺收入日报表", padding=10)
+        list_frame = ttk.LabelFrame(f, text="店铺收入统计（明细）", padding=10)
         list_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
         list_frame.rowconfigure(0, weight=1)
         list_frame.columnconfigure(0, weight=1)
@@ -129,7 +129,21 @@ class DailyIncomePage:
 
         self._reload_stores()
         self._sync_currencies()
+
+        # -------------------------------------------------------- 收入统计
+        from app.ui.stats_panel import PeriodStatsPanel
+        self.stats = PeriodStatsPanel(
+            f, "收入统计（今天 / 昨天 / 本月 / 上月 / 自定义 · 原币口径）",
+            self._fetch_stat_rows)
+        self.stats.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
+
         self.refresh()
+
+    # ------------------------------------------------------------ 统计
+    def _fetch_stat_rows(self, f, t):
+        """给统计面板提供区间内的收入明细 [(币种, 金额), ...]。"""
+        return [(r.get("currency") or "", r.get("amount") or 0)
+                for r in database.list_daily_income_rows(f, t)]
 
     # ------------------------------------------------------------ 下拉联动
     def _reload_stores(self):
@@ -177,6 +191,8 @@ class DailyIncomePage:
                 format_amount(r["amount"], symbols=False),
                 r["notes"]))
         self._refresh_summary()
+        if getattr(self, "stats", None) is not None:
+            self.stats.refresh()
 
     def _refresh_summary(self):
         """底部展示营业额按来源归集到的财务报表科目及金额。"""

@@ -1,4 +1,4 @@
-"""店铺支出日报表。
+"""店铺支出统计。
 
 - 一笔一行：同一天可录入不同分店、不同币种、不同付款方式的多笔支出。
 - 列表一行一笔；点击某一行即把该笔支出回填到表单，修改后保存即可（再编辑）。
@@ -133,7 +133,7 @@ class DailyExpensePage:
         f.rowconfigure(0, weight=1)
 
         # -------------------------------------------------------- 列表
-        list_frame = ttk.LabelFrame(f, text="店铺支出日报表", padding=10)
+        list_frame = ttk.LabelFrame(f, text="店铺支出统计（明细）", padding=10)
         list_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 5))
         list_frame.rowconfigure(0, weight=1)
         list_frame.columnconfigure(0, weight=1)
@@ -172,6 +172,13 @@ class DailyExpensePage:
         self.cat_list = ttk.Frame(self.cat_mgr)
         self.cat_list.pack(fill="x")
         self._refresh_category_manager()
+
+        # -------------------------------------------------------- 支出统计
+        from app.ui.stats_panel import PeriodStatsPanel
+        self.stats = PeriodStatsPanel(
+            f, "支出统计（今天 / 昨天 / 本月 / 上月 / 自定义 · 原币口径）",
+            self._fetch_stat_rows)
+        self.stats.grid(row=3, column=0, sticky="ew", padx=10, pady=(5, 10))
 
         ttk.Label(form, text="日期").grid(row=0, column=0, sticky="w", pady=3)
         self.vars["date"] = tk.StringVar(value=date_iso(datetime.date.today()))
@@ -243,6 +250,12 @@ class DailyExpensePage:
         self._reload_stores()
         self._update_method_hint()
         self.refresh()
+
+    # ------------------------------------------------------ 支出统计
+    def _fetch_stat_rows(self, f, t):
+        """给统计面板提供区间内的支出明细 [(币种, 金额), ...]。"""
+        return [(r.get("currency") or "", r.get("amount") or 0)
+                for r in database.list_daily_expense_items(f, t)]
 
     # ------------------------------------------------------ 新增费用类别
     def _add_category(self):
@@ -344,6 +357,8 @@ class DailyExpensePage:
                 config.currency_label(r["currency"]) or r["currency"] or "",
                 format_amount(r["amount"], symbols=False),
                 r["notes"] or ""))
+        if getattr(self, "stats", None) is not None:
+            self.stats.refresh()
 
     def _on_select(self, event):
         """选中列表中的一行 → 回填表单，进入再编辑状态。"""

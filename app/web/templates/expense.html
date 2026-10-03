@@ -1,6 +1,35 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>店铺支出日报</h2>
+<h2>店铺支出统计</h2>
+
+{% if stats and stats.ov %}
+<div class="card">
+  <h3>支出统计 <span class="muted">（今天 / 昨天 / 本月 / 上月 / 自定义 · 原币口径）</span></h3>
+  <div class="table-wrap">
+  <table>
+    <tr><th>维度</th><th class="num">支出合计</th></tr>
+    <tr><td>今天（{{ stats.ov.day_date }}）</td>
+        <td class="num">{{ stats.ov.day.expense_amount | num }}（{{ stats.ov.day.expense_count }} 笔）</td></tr>
+    <tr><td>昨天（{{ stats.ov.yesterday_date }}）</td>
+        <td class="num">{{ stats.ov.yesterday.expense_amount | num }}（{{ stats.ov.yesterday.expense_count }} 笔）</td></tr>
+    <tr><td>本月（{{ stats.ov.month_label }}）</td>
+        <td class="num">{{ stats.ov.month.expense_amount | num }}（{{ stats.ov.month.expense_count }} 笔）</td></tr>
+    <tr><td>上月（{{ stats.ov.last_month_label }}）</td>
+        <td class="num">{{ stats.ov.last_month.expense_amount | num }}（{{ stats.ov.last_month.expense_count }} 笔）</td></tr>
+    {% if stats.custom %}
+    <tr><td>自定义（{{ stats.custom.range }}）</td>
+        <td class="num">{{ stats.custom.stats.expense_amount | num }}（{{ stats.custom.stats.expense_count }} 笔）</td></tr>
+    {% endif %}
+  </table>
+  </div>
+  <form method="get" class="form-row">
+    <label>自定义：从<input type="date" name="sfrom" value="{{ request.args.get('sfrom', '') }}"></label>
+    <label>至<input type="date" name="sto" value="{{ request.args.get('sto', '') }}"></label>
+    <button type="submit">查询</button>
+  </form>
+</div>
+{% endif %}
+
 <form method="post" class="card">
   {% if edit %}<input type="hidden" name="id" value="{{ edit.id }}">{% endif %}
   <div class="form-row">

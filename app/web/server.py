@@ -39,8 +39,8 @@ app.jinja_env.filters["basemoney"] = lambda v: format_base_amount(
 
 NAV = [
     ("dashboard", "概览"),
-    ("income", "收入日报"),
-    ("expense", "支出日报"),
+    ("income", "收入统计"),
+    ("expense", "支出统计"),
     ("fx", "兑换单"),
     ("documents", "单据"),
     ("products", "库存"),
@@ -100,6 +100,33 @@ def dashboard():
 
 
 # ------------------------------------------------------------------ 收入日报
+def _page_stats(kind):
+    """收入 / 支出页的时段统计（今天/昨天/本月/上月/自定义，原币口径）。
+
+    自定义区间通过 GET 参数 sfrom / sto 传入。
+    """
+    try:
+        ov = reports_mod.income_expense_overview()
+    except Exception:  # noqa: BLE001  统计失败不影响页面
+        ov = None
+    custom = None
+    sfrom = request.args.get("sfrom", "")
+    sto = request.args.get("sto", "")
+    if sfrom and sto:
+        df, dt = parse_date(sfrom), parse_date(sto)
+        if df and dt:
+            if df > dt:
+                df, dt = dt, df
+            try:
+                custom = {
+                    "range": f"{df.isoformat()} ~ {dt.isoformat()}",
+                    "stats": reports_mod.income_expense_stats(df, dt),
+                }
+            except Exception:  # noqa: BLE001
+                custom = None
+    return {"stats": {"ov": ov, "custom": custom}}
+
+
 @app.route("/income", methods=["GET", "POST"])
 def income():
     if request.method == "POST":
@@ -134,7 +161,7 @@ def income():
         sources=config.INCOME_SOURCES,
         currencies=config.INCOME_CURRENCY_LABELS,
         source_currencies=config.INCOME_SOURCE_CURRENCIES,
-        edit=edit)
+        edit=edit, **_page_stats("income"))
 
 
 @app.post("/income/delete/<int:row_id>")
@@ -186,7 +213,7 @@ def expense():
         methods=reports_mod.payment_account_options(),
         currencies=[{"code": c, "label": config.currency_label(c)}
                     for c in config.PAY_CURRENCIES],
-        edit=edit)
+        edit=edit, **_page_stats("expense"))
 
 
 @app.post("/expense/delete/<int:rec_id>")
@@ -408,7 +435,6 @@ def reports():
     dto = parse_date(to) if to else None
     capital = float(settings_mod.load_settings().get("capital_inicial", 0) or 0)
     rows, error, trial, src = [], None, None, None
-    overview = None
     try:
         # get_report 返回 (报表 dict, 未换算单据 list)
         res = reports_mod.get_report(rtype, dfrom, dto, capital,
@@ -421,20 +447,9 @@ def reports():
             rows = _report_rows(data or {})
     except Exception as e:  # noqa: BLE001
         error = str(e)
-    try:
-        overview = reports_mod.income_expense_overview()
-    except Exception:  # noqa: BLE001  概览失败不影响报表查询
-        overview = None
-    if overview is not None and dfrom and dto:
-        try:  # 自定义区间：跟随报表查询的起止日期
-            overview["custom"] = reports_mod.income_expense_stats(dfrom, dto)
-            overview["custom_range"] = f"{dfrom.isoformat()} ~ {dto.isoformat()}"
-        except Exception:  # noqa: BLE001
-            pass
     return render_template("reports.html", active="reports", rtype=rtype,
                            rows=rows, error=error, frm=frm, to=to, trial=trial,
-                           sources=src, rate_kind=rate_kind,
-                           overview=overview)
+                           sources=src, rate_kind=rate_kind)
 
 
 # ------------------------------------------------------------------ 设置

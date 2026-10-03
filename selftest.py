@@ -937,7 +937,7 @@ def main():
         check("科目余额表 PDF 可导出", os.path.exists(pdf), pdf)
         cli = _web_app.test_client()
         for path, name in (("/", "经营概览"), ("/documents", "单据管理"),
-                           ("/income", "店铺收入日报"), ("/expense", "店铺支出日报"),
+                           ("/income", "店铺收入统计"), ("/expense", "店铺支出统计"),
                            ("/products", "商品库存")):
             page = cli.get(path).get_data(as_text=True)
             check(f"Web {name} 金额不带 $", "$" not in page,
