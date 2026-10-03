@@ -204,6 +204,10 @@ def main():
         check("单据支付方式保存并读回",
               database.get_document(pm_id).get("payment_method")
               == config.DOC_PAYMENT_TRANSFER)
+        database.update_document(pm_id, {"payment_method": config.PAY_METHOD_EPAY})
+        check("编辑单据可修改支付方式",
+              database.get_document(pm_id).get("payment_method")
+              == config.PAY_METHOD_EPAY)
         database.delete_document(pm_id)
 
         # 分店字段保存/读回 + 按分店筛选

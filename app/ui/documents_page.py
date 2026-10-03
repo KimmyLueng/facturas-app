@@ -262,6 +262,7 @@ class DocumentsPage:
             "currency": tk.StringVar(
                 value=config.currency_label(doc.get("currency"))),
             "exchange_rate": tk.StringVar(value=str(doc.get("exchange_rate") or "")),
+            "payment_method": tk.StringVar(value=doc.get("payment_method") or ""),
             "iva_rate": tk.StringVar(value=str(doc.get("iva_rate") or 0)),
             "base": tk.StringVar(value=str(doc.get("base") or 0)),
             "iva_amount": tk.StringVar(value=str(doc.get("iva_amount") or 0)),
@@ -311,6 +312,10 @@ class DocumentsPage:
         ttk.Entry(form, textvariable=v["iva_amount"], width=12).grid(row=4, column=1, sticky="w")
         ttk.Label(form, text=" Total：").grid(row=4, column=2, sticky="w")
         ttk.Entry(form, textvariable=v["total"], width=13).grid(row=4, column=3, sticky="w")
+        ttk.Label(form, text=" 支付方式：").grid(row=4, column=4, sticky="w")
+        ttk.Combobox(form, textvariable=v["payment_method"], width=14,
+                     values=[""] + list(config.DOC_PAYMENT_METHODS)).grid(
+            row=4, column=5, sticky="w")
 
         ttk.Label(win, text="行项目（双击行编辑）",
                   font=("Microsoft YaHei UI", 9, "bold")).pack(anchor="w", padx=12)
@@ -405,6 +410,7 @@ class DocumentsPage:
                 "tax_id": v["tax_id"].get().strip(),
                 "currency": config.currency_code(v["currency"].get()),
                 "exchange_rate": self._num(v["exchange_rate"].get()),
+                "payment_method": v["payment_method"].get().strip(),
                 "iva_rate": self._num(v["iva_rate"].get()),
                 "base": self._num(v["base"].get()),
                 "iva_amount": self._num(v["iva_amount"].get()),

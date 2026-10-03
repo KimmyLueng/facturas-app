@@ -868,7 +868,7 @@ def update_document(doc_id: int, doc: dict) -> bool:
             """UPDATE documents SET
                  doc_type=?, direction=?, doc_number=?, date=?, partner_id=?,
                  partner_name=?, tax_id=?, base=?, iva_rate=?, iva_amount=?,
-                 total=?, currency=?, exchange_rate=?, store=?
+                 total=?, currency=?, exchange_rate=?, store=?, payment_method=?
                WHERE id=?""",
             (doc.get("doc_type", old["doc_type"]), direction,
              doc.get("doc_number", old["doc_number"]), date_iso, pid,
@@ -879,7 +879,8 @@ def update_document(doc_id: int, doc: dict) -> bool:
              doc.get("total", old["total"]),
              config.normalize_currency(doc.get("currency", old["currency"])),
              doc.get("exchange_rate", old["exchange_rate"]),
-             doc.get("store", old["store"]), doc_id))
+             doc.get("store", old["store"]),
+             doc.get("payment_method", old["payment_method"]), doc_id))
 
         conn.execute("DELETE FROM items WHERE document_id = ?", (doc_id,))
         items = doc.get("items") or []
