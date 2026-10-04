@@ -896,6 +896,15 @@ def main():
             except Exception as e:  # noqa: BLE001
                 check(f"{cls.__name__} 可构建", False, f"{e}")
 
+        # 回归：费用类别管理区必须在页面打开时就渲染出重命名/删除按钮
+        exp = _build(DailyExpensePage)
+        check("费用类别管理区已渲染（含内置改名按钮）",
+              bool(exp.cat_list.winfo_children())
+              and any("重命名" in str(b.cget("text"))
+                      for row in exp.cat_list.winfo_children()
+                      for b in row.winfo_children()
+                      if isinstance(b, ttk.Button)))
+
         page = _build(ReportsPage)
         counts = {}
         for t in ("balance", "income", "trial", "balance", "trial"):

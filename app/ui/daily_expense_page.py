@@ -176,6 +176,8 @@ class DailyExpensePage:
         self.cat_mgr = ttk.LabelFrame(
             f, text="费用类别管理（全部类别均可重命名；自定义类别可删除）", padding=10)
         self.cat_mgr.grid(row=3, column=0, sticky="ew", padx=10, pady=(5, 10))
+        self.cat_list = ttk.Frame(self.cat_mgr)
+        self.cat_list.pack(fill="both", expand=True)
 
         ttk.Label(form, text="日期").grid(row=0, column=0, sticky="w", pady=3)
         self.vars["date"] = tk.StringVar(value=date_iso(datetime.date.today()))
@@ -247,6 +249,7 @@ class DailyExpensePage:
         self._reload_stores()
         self._update_method_hint()
         self.refresh()
+        self._refresh_category_manager()  # 页面打开即渲染各类别的重命名/删除按钮
 
     # ------------------------------------------------------ 支出统计
     def _fetch_stat_rows(self, f, t):
